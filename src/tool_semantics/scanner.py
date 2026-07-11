@@ -11,6 +11,10 @@ class ManifestError(ValueError):
     """Raised when a manifest cannot be normalized."""
 
 
+SUPPORTED_SNAPSHOT_VERSIONS = frozenset({"0.1"})
+CURRENT_SNAPSHOT_VERSION = "0.1"
+
+
 def _normalize_parameters(input_schema: dict[str, Any]) -> list[ToolParameter]:
     properties = input_schema.get("properties", {})
     required = set(input_schema.get("required", []))
@@ -51,12 +55,15 @@ def capture_manifest(path: Path) -> InterfaceSnapshot:
         input_schema = raw_tool.get("inputSchema", {"type": "object", "properties": {}})
         if not isinstance(input_schema, dict):
             raise ManifestError(f"Tool '{raw_tool['name']}' inputSchema must be an object")
+        output_schema = raw_tool.get("outputSchema")
+        if output_schema is not None and not isinstance(output_schema, dict):
+            raise ManifestError(f"Tool '{raw_tool['name']}' outputSchema must be an object")
         tools.append(
             ToolContract(
                 name=raw_tool["name"],
                 description=str(raw_tool.get("description", "")),
                 parameters=_normalize_parameters(input_schema),
-                output_schema=raw_tool.get("outputSchema"),
+                output_schema=output_schema,
                 risk=raw_tool.get("risk", "unknown"),
             )
         )
@@ -75,8 +82,21 @@ def write_snapshot(snapshot: InterfaceSnapshot, output: Path) -> None:
     output.write_text(snapshot.model_dump_json(indent=2, by_alias=True) + "\n", encoding="utf-8")
 
 
+def _validate_snapshot_version(version: str) -> None:
+    if version in SUPPORTED_SNAPSHOT_VERSIONS:
+        return
+    supported = ", ".join(sorted(SUPPORTED_SNAPSHOT_VERSIONS))
+    raise ManifestError(
+        f"Unsupported tool_semantics_version {version!r}. "
+        f"Supported versions: {supported}. "
+        f"Upgrade Tool-Semantics or re-capture snapshots with version {CURRENT_SNAPSHOT_VERSION}."
+    )
+
+
 def read_snapshot(path: Path) -> InterfaceSnapshot:
     try:
-        return InterfaceSnapshot.model_validate_json(path.read_text(encoding="utf-8"))
+        snapshot = InterfaceSnapshot.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise ManifestError(f"Unable to read snapshot: {exc}") from exc
+    _validate_snapshot_version(snapshot.tool_semantics_version)
+    return snapshot
