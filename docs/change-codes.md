@@ -9,11 +9,15 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `tool.added` | info | A new tool appeared; selection-collision testing is still pending |
 | `tool.description_changed` | warning | Description text changed; model tool-selection may drift |
 | `tool.risk_changed` | warning / critical | Declared risk level changed (critical when escalating from `read_only`) |
+| `tool.output_schema_added` | info | A tool gained an `outputSchema` |
+| `tool.output_schema_removed` | breaking | A tool lost its `outputSchema` |
+| `tool.output_schema_changed` | breaking | A tool's `outputSchema` changed |
 | `parameter.removed` | breaking | A parameter was removed from a tool |
 | `parameter.added` | info | An optional parameter was added |
 | `parameter.added_required` | breaking | A required parameter was added |
 | `parameter.became_required` | breaking | An optional parameter became required |
-| `parameter.schema_changed` | breaking | Parameter JSON Schema changed (non-enum or unstructured diff) |
+| `parameter.default_changed` | warning | Parameter `default` added, removed, or changed (does not fail CI alone) |
+| `parameter.schema_changed` | breaking | Parameter JSON Schema changed (excluding `default`; non-enum or unstructured) |
 | `parameter.enum_values_removed` | breaking | One or more enum values were removed |
 | `parameter.enum_values_added` | info | One or more enum values were added |
 
