@@ -130,6 +130,19 @@ print("compatible:", report.is_compatible)
 | `1` | Breaking or critical changes detected |
 | `2` | Input / capture / parse error |
 
+## CLI reference
+
+```bash
+tool-semantics --version
+tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json]
+tool-semantics compare <baseline.json> <candidate.json> \
+  [--json-output report.json] \
+  [--markdown-output report.md]
+```
+
+JSON reports include `changes`, `is_compatible`, and `counts` by severity.  
+Change-code catalog: [docs/change-codes.md](docs/change-codes.md).
+
 ## Project layout
 
 ```text

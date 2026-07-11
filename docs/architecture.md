@@ -45,6 +45,8 @@ flowchart TB
 | **Behavioral runner** | Planned model-provider-neutral probe runner |
 | **Adapter generator** | Planned compatibility aliases and transforms |
 
+See [change-codes.md](change-codes.md) for the full catalog of stable `Change.code` values.
+
 ## Severity model
 
 | Severity | Typical meaning |

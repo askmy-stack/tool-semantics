@@ -47,3 +47,12 @@ def test_markdown_report_includes_summary() -> None:
     assert "# Tool-Semantics report:" in markdown
     assert "**Result:** `breaking`" in markdown
     assert "| Severity | Count |" in markdown
+
+
+def test_counts_by_severity() -> None:
+    baseline = capture_manifest(Path("examples/github_server_v1.json"))
+    candidate = capture_manifest(Path("examples/github_server_v2.json"))
+    report = compare_snapshots(baseline, candidate)
+    counts = report.counts_by_severity()
+    assert counts["breaking"] >= 1
+    assert sum(counts.values()) == len(report.changes)

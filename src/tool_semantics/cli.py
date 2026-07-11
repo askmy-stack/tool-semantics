@@ -15,7 +15,10 @@ from tool_semantics.scanner import ManifestError, capture_manifest, read_snapsho
 
 app = typer.Typer(
     no_args_is_help=True,
-    help="Behavioral compatibility testing for MCP tools and AI-agent interfaces.",
+    help=(
+        "Tool-Semantics: behavioral compatibility testing for MCP tools and AI-agent interfaces. "
+        "Exit codes: 0=compatible, 1=breaking/critical, 2=input error."
+    ),
 )
 console = Console()
 
@@ -37,8 +40,22 @@ def main(
 
 @app.command()
 def capture(
-    manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    output: Annotated[Path, typer.Option("--output", "-o")] = Path(".tool-semantics/snapshot.json"),
+    manifest: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            dir_okay=False,
+            help="Path to a JSON tool manifest (MCP-style tools array).",
+        ),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Where to write the normalized snapshot JSON.",
+        ),
+    ] = Path(".tool-semantics/snapshot.json"),
 ) -> None:
     """Normalize a JSON tool manifest into a Tool-Semantics snapshot."""
     try:
@@ -53,14 +70,45 @@ def capture(
     )
 
 
+def _require_snapshot_file(path: Path, label: str) -> Path:
+    if not path.is_file():
+        console.print(
+            f"[red]{label} snapshot not found:[/red] {path}\n"
+            "Run [bold]tool-semantics capture <manifest.json> -o "
+            f"{path}[/bold] first, then compare."
+        )
+        raise typer.Exit(code=2)
+    return path
+
+
 @app.command()
 def compare(
-    baseline: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    candidate: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    json_output: Annotated[Path | None, typer.Option("--json-output")] = None,
-    markdown_output: Annotated[Path | None, typer.Option("--markdown-output")] = None,
+    baseline: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Baseline snapshot JSON from `capture`."),
+    ],
+    candidate: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Candidate snapshot JSON from `capture`."),
+    ],
+    json_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--json-output",
+            help="Write a JSON report including changes, counts, and is_compatible.",
+        ),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--markdown-output",
+            help="Write a GitHub-friendly Markdown report.",
+        ),
+    ] = None,
 ) -> None:
-    """Compare two Tool-Semantics snapshots."""
+    """Compare two Tool-Semantics snapshots (exit 1 on breaking/critical)."""
+    _require_snapshot_file(baseline, "Baseline")
+    _require_snapshot_file(candidate, "Candidate")
     try:
         report = compare_snapshots(read_snapshot(baseline), read_snapshot(candidate))
     except ManifestError as exc:
@@ -82,9 +130,10 @@ def compare(
 
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
-        json_output.write_text(
-            json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
-        )
+        payload = report.model_dump(mode="json")
+        payload["is_compatible"] = report.is_compatible
+        payload["counts"] = report.counts_by_severity()
+        json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if markdown_output is not None:
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
         markdown_output.write_text(render_markdown(report), encoding="utf-8")

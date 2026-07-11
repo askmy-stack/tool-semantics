@@ -21,12 +21,16 @@ mypy src
 pytest --cov=tool_semantics
 ```
 
+## Typing
+
+The package ships a `py.typed` marker. Keep public APIs fully typed; `mypy` runs in strict mode on `src/`.
+
 ## Design-sensitive changes
 
 Open a design issue first if you plan to change:
 
 - the snapshot schema (`InterfaceSnapshot` / `ToolContract`)
-- severity model or change codes
+- severity model or change codes ([docs/change-codes.md](docs/change-codes.md))
 - behavioral contract formats
 - provider-neutral runners or MCP live capture protocol
 
