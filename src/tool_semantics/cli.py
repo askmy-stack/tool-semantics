@@ -12,6 +12,7 @@ from tool_semantics import __version__
 from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.mcp_capture import McpCaptureError, capture_mcp_sse, capture_mcp_stdio
+from tool_semantics.policy import policy_from_name
 from tool_semantics.report import render_markdown, severity_style
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
 
@@ -203,6 +204,16 @@ def compare(
             help="Path to `.tool-semantics.toml` (default: look in cwd).",
         ),
     ] = None,
+    policy: Annotated[
+        str | None,
+        typer.Option(
+            "--policy",
+            help=(
+                "Release policy override: compatible|strict|critical-only|permissive "
+                "(default: config policy or breaking)."
+            ),
+        ),
+    ] = None,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -212,13 +223,14 @@ def compare(
         ),
     ] = False,
 ) -> None:
-    """Compare two Tool-Semantics snapshots (exit 1 on breaking/critical)."""
+    """Compare two Tool-Semantics snapshots (exit 1 when release policy fails)."""
     _require_snapshot_file(baseline, "Baseline")
     _require_snapshot_file(candidate, "Candidate")
     _log_verbose(verbose, f"Loading baseline {baseline.resolve()}")
     _log_verbose(verbose, f"Loading candidate {candidate.resolve()}")
     try:
         config_data = load_config(config)
+        release_policy = policy_from_name(policy) if policy else config_data.policy
         baseline_snap = read_snapshot(baseline)
         candidate_snap = read_snapshot(candidate)
         _log_verbose(
@@ -234,9 +246,11 @@ def compare(
         raise typer.Exit(code=2) from exc
 
     counts = report.counts_by_severity()
+    fails_policy = release_policy.should_fail(report)
     _log_verbose(
         verbose,
-        f"Changes={len(report.changes)} counts={counts} compatible={report.is_compatible}",
+        f"Changes={len(report.changes)} counts={counts} "
+        f"compatible={report.is_compatible} policy_fail={fails_policy}",
     )
 
     table = Table(title=f"Tool-Semantics: {report.baseline} → {report.candidate}")
@@ -250,16 +264,23 @@ def compare(
             change.message,
         )
     console.print(table if report.changes else "[green]No structural changes detected.[/green]")
-    console.print(f"Result: [bold]{'compatible' if report.is_compatible else 'breaking'}[/bold]")
+    console.print(
+        f"Result: [bold]{'compatible' if report.is_compatible else 'breaking'}[/bold] "
+        f"(policy={release_policy.fail_at_or_above.value})"
+    )
 
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
         payload = report.model_dump(mode="json")
         payload["is_compatible"] = report.is_compatible
         payload["counts"] = report.counts_by_severity()
+        payload["policy"] = {
+            "fail_at_or_above": release_policy.fail_at_or_above.value,
+            "failed": fails_policy,
+        }
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if markdown_output is not None:
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
-    if not report.is_compatible:
+    if fails_policy:
         raise typer.Exit(code=1)

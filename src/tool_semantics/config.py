@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from tool_semantics.diff import Change, CompatibilityReport, Severity
+from tool_semantics.policy import FailSeverity, ReleasePolicy
 
 DEFAULT_CONFIG_NAME = ".tool-semantics.toml"
 
@@ -20,6 +21,7 @@ class IgnoreRules:
 @dataclass(frozen=True)
 class ToolSemanticsConfig:
     ignore: IgnoreRules = field(default_factory=IgnoreRules)
+    policy: ReleasePolicy = field(default_factory=ReleasePolicy)
 
 
 def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
@@ -28,6 +30,19 @@ def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"Config field '{field_name}' must be an array of strings")
     return tuple(value)
+
+
+def _parse_policy(raw: dict[str, Any]) -> ReleasePolicy:
+    fail_at = raw.get("fail_at_or_above", "breaking")
+    if not isinstance(fail_at, str):
+        raise ValueError("Config field 'policy.fail_at_or_above' must be a string")
+    try:
+        severity = FailSeverity(fail_at.strip().lower())
+    except ValueError as exc:
+        raise ValueError(
+            "policy.fail_at_or_above must be one of: info, warning, breaking, critical, none"
+        ) from exc
+    return ReleasePolicy(fail_at_or_above=severity)
 
 
 def load_config(path: Path | None = None) -> ToolSemanticsConfig:
@@ -49,11 +64,17 @@ def load_config(path: Path | None = None) -> ToolSemanticsConfig:
         ignore_raw = {}
     if not isinstance(ignore_raw, dict):
         raise ValueError("Config field 'ignore' must be a table")
+    policy_raw = raw.get("policy", {})
+    if policy_raw is None:
+        policy_raw = {}
+    if not isinstance(policy_raw, dict):
+        raise ValueError("Config field 'policy' must be a table")
     return ToolSemanticsConfig(
         ignore=IgnoreRules(
             codes=_as_str_tuple(ignore_raw.get("codes"), "ignore.codes"),
             subjects=_as_str_tuple(ignore_raw.get("subjects"), "ignore.subjects"),
-        )
+        ),
+        policy=_parse_policy(policy_raw),
     )
 
 

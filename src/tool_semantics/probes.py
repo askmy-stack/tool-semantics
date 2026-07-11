@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from tool_semantics.models import InterfaceSnapshot
+from tool_semantics.models import InterfaceSnapshot, RiskLevel
 
 
 class ProbeKind(StrEnum):
@@ -22,6 +22,9 @@ class Probe(BaseModel):
     expected_tool: str | None = None
     forbidden_tools: list[str] = Field(default_factory=list)
     required_params: list[str] = Field(default_factory=list)
+    # Side-effect / confirmation expectations (Milestone 3).
+    max_risk: str | None = None  # read_only | external_write | destructive | unknown
+    requires_confirmation: bool = False
 
 
 class ProbeResult(BaseModel):
@@ -106,7 +109,49 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
                 )
             )
             continue
-        message = f"Expected tool '{tool.name}' present."
+        if probe.max_risk is not None:
+            try:
+                allowed = RiskLevel(probe.max_risk)
+            except ValueError:
+                report.results.append(
+                    ProbeResult(
+                        probe_id=probe.id,
+                        passed=False,
+                        message=f"Invalid max_risk '{probe.max_risk}'.",
+                    )
+                )
+                continue
+            rank = {
+                RiskLevel.READ_ONLY: 0,
+                RiskLevel.UNKNOWN: 1,
+                RiskLevel.EXTERNAL_WRITE: 2,
+                RiskLevel.DESTRUCTIVE: 3,
+            }
+            if rank[tool.risk] > rank[allowed]:
+                report.results.append(
+                    ProbeResult(
+                        probe_id=probe.id,
+                        passed=False,
+                        message=(
+                            f"Tool '{tool.name}' risk '{tool.risk}' exceeds "
+                            f"max_risk '{probe.max_risk}'."
+                        ),
+                    )
+                )
+                continue
+        if probe.requires_confirmation and tool.risk in {
+            RiskLevel.EXTERNAL_WRITE,
+            RiskLevel.DESTRUCTIVE,
+        }:
+            # Offline harness can only assert that confirmation is *required by policy*;
+            # it cannot observe a runtime confirmation UI.
+            message_prefix = (
+                f"Expected tool '{tool.name}' present; confirmation required for "
+                f"risk '{tool.risk}'."
+            )
+        else:
+            message_prefix = f"Expected tool '{tool.name}' present."
+        message = message_prefix
         if probe.kind == ProbeKind.AMBIGUOUS:
             intent_tokens = {token.lower() for token in probe.intent.split() if len(token) > 3}
             collisions = []

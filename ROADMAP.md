@@ -30,7 +30,7 @@
 
 ## Milestone 3 — Behavioral contracts
 - [x] Offline probe harness (positive / negative / ambiguous) — [#12](https://github.com/askmy-stack/tool-semantics/issues/12)
-- [ ] Side-effect and confirmation expectations
+- [x] Side-effect and confirmation expectations (`max_risk`, `requires_confirmation`)
 - [ ] Human-reviewed probe generation / model-backed runners
 
 ## Milestone 4 — Model matrix
@@ -42,11 +42,11 @@
 ## Milestone 5 — Pull-request reporting
 - [x] Baseline versus candidate comparison (CLI)
 - [x] PR comments via composite GitHub Action — [#13](https://github.com/askmy-stack/tool-semantics/issues/13)
-- [ ] Release-policy enforcement knobs beyond fail-on-breaking
+- [x] Release-policy enforcement knobs (`--policy` / `[policy]` / Action `policy`)
 - [x] PyPI publish / trusted publishing workflow — [#23](https://github.com/askmy-stack/tool-semantics/issues/23)
 
 ## Milestone 6 — Migration adapters
 - [x] Tool aliases / rename detection (heuristic warning)
-- [ ] Argument and enum translation
-- [ ] Output wrappers
-- [ ] MCP compatibility proxy
+- [x] Argument and enum translation (`MigrationAdapter`)
+- [x] Output wrappers
+- [x] In-process MCP compatibility proxy (`CompatibilityProxy`)

@@ -151,7 +151,8 @@ JSON reports include `changes`, `is_compatible`, and `counts` by severity.
 Change-code catalog: [docs/change-codes.md](docs/change-codes.md).  
 Ignore-config schema: [docs/config.md](docs/config.md).  
 GitHub Action: [docs/github-action.md](docs/github-action.md).  
-Publishing: [docs/publishing.md](docs/publishing.md).
+Publishing: [docs/publishing.md](docs/publishing.md).  
+Migration adapters: [docs/adapters.md](docs/adapters.md).
 
 ### Optional `risk` field
 

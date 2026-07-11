@@ -18,6 +18,9 @@ All notable changes to Tool-Semantics will be documented in this file.
 - Heuristic `tool.renamed` detection (#24)
 - `parameter.type_widened` / `type_narrowed` / `type_changed` / `constraints_tightened` (#25)
 - Example manifest with `outputSchema` (`examples/weather_with_output.json`)
+- Release policies (`--policy`, `[policy]` in config, Action `policy` input)
+- Migration adapters + in-process compatibility proxy (`docs/adapters.md`)
+- Probe side-effect gates (`max_risk`, `requires_confirmation`)
 
 ## [0.1.0] — 2026-07-11
 

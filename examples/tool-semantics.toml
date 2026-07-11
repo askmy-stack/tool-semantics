@@ -16,3 +16,8 @@ subjects = [
   # "experimental_*",
   # "*.internal",
 ]
+
+[policy]
+# Fail when any remaining change is at or above this severity.
+# info | warning | breaking | critical | none
+fail_at_or_above = "breaking"

@@ -9,12 +9,19 @@ current working directory, or from an explicit `--config` path.
 [ignore]
 codes = ["tool.description_changed", "parameter.default_changed"]
 subjects = ["experimental_*", "*.debug"]
+
+[policy]
+# Fail compare/CI when any change is at or above this severity.
+# One of: info | warning | breaking | critical | none
+fail_at_or_above = "breaking"
 ```
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `ignore.codes` | string array | Exact change codes to ignore (see [change-codes.md](change-codes.md)) |
 | `ignore.subjects` | string array | `fnmatch` patterns against change subjects (`tool` or `tool.param`) |
+| `policy.fail_at_or_above` | string | Release gate threshold (default `breaking`) |
+
 
 ## Severity model
 

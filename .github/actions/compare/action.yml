@@ -22,9 +22,15 @@ inputs:
     required: false
     default: "true"
   fail-on-breaking:
-    description: If true, fail the job when compare exits 1.
+    description: Deprecated alias for policy=compatible when true.
     required: false
     default: "true"
+  policy:
+    description: >
+      Release policy — compatible (fail on breaking+), strict (fail on warning+),
+      critical-only, or permissive.
+    required: false
+    default: ""
   working-directory:
     description: Working directory for the compare command.
     required: false
@@ -34,6 +40,9 @@ outputs:
   compatible:
     description: "true if no breaking/critical changes remain after ignore rules."
     value: ${{ steps.compare.outputs.compatible }}
+  policy-failed:
+    description: "true if the selected release policy failed."
+    value: ${{ steps.compare.outputs.policy-failed }}
   report-path:
     description: Path to the generated Markdown report.
     value: ${{ steps.compare.outputs.report-path }}
@@ -66,6 +75,7 @@ runs:
         CANDIDATE: ${{ inputs.candidate }}
         CONFIG: ${{ inputs.config }}
         FAIL_ON_BREAKING: ${{ inputs.fail-on-breaking }}
+        POLICY: ${{ inputs.policy }}
       run: |
         set +e
         REPORT_DIR="${RUNNER_TEMP:-/tmp}/tool-semantics"
@@ -76,22 +86,30 @@ runs:
         if [ -n "$CONFIG" ]; then
           ARGS+=(--config "$CONFIG")
         fi
+        if [ -n "$POLICY" ]; then
+          ARGS+=(--policy "$POLICY")
+        elif [ "$FAIL_ON_BREAKING" = "false" ]; then
+          ARGS+=(--policy permissive)
+        fi
         tool-semantics "${ARGS[@]}"
         CODE=$?
         set -e
         if [ ! -f "$JSON" ]; then
           echo "compatible=false" >> "$GITHUB_OUTPUT"
+          echo "policy-failed=true" >> "$GITHUB_OUTPUT"
           echo "report-path=$REPORT" >> "$GITHUB_OUTPUT"
           exit "$CODE"
         fi
         COMPATIBLE=$(python -c "import json; print(str(json.load(open('$JSON'))['is_compatible']).lower())")
+        POLICY_FAILED=$(python -c "import json; d=json.load(open('$JSON')); print(str(d.get('policy',{}).get('failed', not d['is_compatible'])).lower())")
         echo "compatible=$COMPATIBLE" >> "$GITHUB_OUTPUT"
+        echo "policy-failed=$POLICY_FAILED" >> "$GITHUB_OUTPUT"
         echo "report-path=$REPORT" >> "$GITHUB_OUTPUT"
-        if [ "$FAIL_ON_BREAKING" = "true" ] && [ "$CODE" -eq 1 ]; then
-          exit 1
-        fi
         if [ "$CODE" -ge 2 ]; then
           exit "$CODE"
+        fi
+        if [ "$POLICY_FAILED" = "true" ]; then
+          exit 1
         fi
         exit 0
 

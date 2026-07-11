@@ -35,8 +35,8 @@ jobs:
           baseline: .tool-semantics/baseline.json
           candidate: .tool-semantics/candidate.json
           config: .tool-semantics.toml
+          policy: strict
           comment-on-pr: "true"
-          fail-on-breaking: "true"
 ```
 
 ## Inputs
@@ -45,16 +45,18 @@ jobs:
 | --- | --- | --- | --- |
 | `baseline` | yes | — | Baseline snapshot path |
 | `candidate` | yes | — | Candidate snapshot path |
-| `config` | no | `""` | Optional ignore-config path |
+| `config` | no | `""` | Optional ignore/policy config path |
+| `policy` | no | `""` | `compatible` / `strict` / `critical-only` / `permissive` |
 | `comment-on-pr` | no | `true` | Upsert a PR comment with the report |
-| `fail-on-breaking` | no | `true` | Fail the job on exit code 1 |
+| `fail-on-breaking` | no | `true` | Legacy; `false` maps to `permissive` when `policy` unset |
 | `working-directory` | no | `.` | Directory for install/compare |
 
 ## Outputs
 
 | Output | Description |
 | --- | --- |
-| `compatible` | `true` / `false` after ignore rules |
+| `compatible` | `true` / `false` after ignore rules (breaking/critical free) |
+| `policy-failed` | `true` if the selected release policy failed |
 | `report-path` | Path to the Markdown report artifact |
 
 ## Permissions
