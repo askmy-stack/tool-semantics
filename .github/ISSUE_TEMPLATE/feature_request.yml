@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a capability or design change for Tool-Semantics
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the concrete compatibility or DX problem.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should Tool-Semantics behave?
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Compatibility layer
+      options:
+        - Protocol
+        - Schema
+        - Tool selection
+        - Execution
+        - Intent / side effects
+        - DX / tooling
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will we know this is done?
+    validations:
+      required: true

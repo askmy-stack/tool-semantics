@@ -1,0 +1,30 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "github-demo",
+  "serverVersion": "1.0.0",
+  "tools": [
+    {
+      "name": "search_issues",
+      "description": "Search open GitHub issues matching a query.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "GitHub issue search query."},
+          "state": {"type": "string", "enum": ["open", "closed"], "default": "open"}
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "create_issue",
+      "description": "Create a new GitHub issue.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+        "required": ["title", "body"]
+      }
+    }
+  ]
+}

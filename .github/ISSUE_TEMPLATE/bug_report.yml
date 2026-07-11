@@ -1,0 +1,36 @@
+name: Bug report
+description: Report incorrect Tool-Semantics behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Tool-Semantics. Please include enough detail to reproduce.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include commands, manifests/snapshots, and the smallest reproducible example.
+      placeholder: |
+        tool-semantics capture ...
+        tool-semantics compare ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tool-Semantics version
+      placeholder: 0.1.0
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, install method

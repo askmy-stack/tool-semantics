@@ -1,0 +1,9 @@
+name: Issue templates
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture overview
+    url: https://github.com/askmy-stack/Tool-Semantics/blob/main/docs/architecture.md
+    about: Read how snapshots, diffs, and reports fit together before proposing large changes.
+  - name: Roadmap
+    url: https://github.com/askmy-stack/Tool-Semantics/blob/main/ROADMAP.md
+    about: Check planned milestones to avoid duplicate proposals.

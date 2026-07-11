@@ -1,0 +1,32 @@
+name: Good first issue
+description: Suggest a well-scoped starter task for new contributors
+title: "[Good first issue]: "
+labels: ["good first issue", "help wanted"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the task.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it helps
+      description: Who benefits and why this is a good onboarding task.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Suggested steps
+      description: Concrete files or commands a contributor should touch.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true

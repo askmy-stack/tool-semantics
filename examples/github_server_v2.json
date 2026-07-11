@@ -1,0 +1,34 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "github-demo",
+  "serverVersion": "2.0.0",
+  "tools": [
+    {
+      "name": "find_work_items",
+      "description": "Retrieve relevant repository work items.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search_expression": {"type": "string"},
+          "status": {"type": "string", "enum": ["active", "resolved"]}
+        },
+        "required": ["search_expression"]
+      }
+    },
+    {
+      "name": "create_issue",
+      "description": "Create a repository work item.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "body": {"type": "string"},
+          "repository": {"type": "string"}
+        },
+        "required": ["title", "body", "repository"]
+      }
+    }
+  ]
+}
