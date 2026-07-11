@@ -10,7 +10,6 @@ dist/
 build/
 *.egg-info/
 .tool-semantics/
-.agentabi/
 .env
 .DS_Store
 uv.lock
