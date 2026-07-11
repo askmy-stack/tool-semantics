@@ -135,6 +135,7 @@ print("compatible:", report.is_compatible)
 ```bash
 tool-semantics --version
 tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json] [-v]
+tool-semantics capture-mcp -o snap.json -- python my_mcp_server.py
 tool-semantics compare <baseline.json> <candidate.json> \
   [--json-output report.json] \
   [--markdown-output report.md] \
@@ -144,10 +145,36 @@ tool-semantics compare <baseline.json> <candidate.json> \
 
 - `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
 - `--config` loads ignore rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
+- `capture-mcp` speaks MCP JSON-RPC over stdio; secrets-like keys are redacted by default.
 
 JSON reports include `changes`, `is_compatible`, and `counts` by severity.  
 Change-code catalog: [docs/change-codes.md](docs/change-codes.md).  
-Ignore-config schema: [docs/config.md](docs/config.md).
+Ignore-config schema: [docs/config.md](docs/config.md).  
+GitHub Action: [docs/github-action.md](docs/github-action.md).  
+Publishing: [docs/publishing.md](docs/publishing.md).
+
+### Optional `risk` field
+
+MCP does not standardize risk. Tool-Semantics accepts an optional tool-level `risk`
+value (`read_only`, `external_write`, `destructive`, `unknown`). Missing values
+default to `unknown` (no false escalation). See the GitHub demo manifests for
+examples.
+
+### Offline probes
+
+```python
+from pathlib import Path
+from tool_semantics.scanner import capture_manifest
+from tool_semantics.probes import Probe, ProbeKind, evaluate_probes
+
+snapshot = capture_manifest(Path("examples/github_server_v1.json"))
+report = evaluate_probes(
+    snapshot,
+    [Probe(id="search", intent="find issues", expected_tool="search_issues",
+           required_params=["query"], kind=ProbeKind.POSITIVE)],
+)
+assert report.passed
+```
 
 ## Project layout
 

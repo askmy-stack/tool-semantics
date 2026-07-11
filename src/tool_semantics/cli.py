@@ -11,6 +11,7 @@ from rich.table import Table
 from tool_semantics import __version__
 from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
+from tool_semantics.mcp_capture import McpCaptureError, capture_mcp_sse, capture_mcp_stdio
 from tool_semantics.report import render_markdown, severity_style
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
 
@@ -91,6 +92,74 @@ def capture(
     )
 
 
+@app.command("capture-mcp")
+def capture_mcp(
+    command: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help="MCP server command after `--`, e.g. `python fake_server.py`.",
+        ),
+    ] = None,
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Where to write the normalized snapshot JSON.",
+        ),
+    ] = Path(".tool-semantics/snapshot.json"),
+    sse_url: Annotated[
+        str | None,
+        typer.Option("--sse", help="SSE MCP endpoint URL (not implemented yet)."),
+    ] = None,
+    server_name: Annotated[
+        str | None,
+        typer.Option("--server-name", help="Override captured server name."),
+    ] = None,
+    no_redact: Annotated[
+        bool,
+        typer.Option("--no-redact", help="Disable secret redaction (not recommended)."),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log capture steps to stderr."),
+    ] = False,
+) -> None:
+    """Capture a live MCP server over stdio (or attempt SSE)."""
+    try:
+        if sse_url:
+            snapshot = capture_mcp_sse(sse_url)
+        else:
+            if not command:
+                console.print(
+                    "[red]Provide an MCP command after `--` or pass --sse <url>.[/red]\n"
+                    "Example: tool-semantics capture-mcp -o snap.json -- python server.py"
+                )
+                raise typer.Exit(code=2)
+            _log_verbose(verbose, f"Starting MCP stdio server: {command}")
+            snapshot = capture_mcp_stdio(
+                command,
+                server_name=server_name,
+                redact=not no_redact,
+            )
+        write_snapshot(snapshot, output)
+    except (McpCaptureError, ManifestError) as exc:
+        console.print(f"[red]MCP capture failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    _log_verbose(
+        verbose,
+        (
+            f"Captured tools={len(snapshot.tools)} prompts={len(snapshot.prompts)} "
+            f"resources={len(snapshot.resources)} → {output.resolve()}"
+        ),
+    )
+    console.print(
+        f"[green]Captured[/green] {len(snapshot.tools)} tools / "
+        f"{len(snapshot.prompts)} prompts / {len(snapshot.resources)} resources from "
+        f"[bold]{snapshot.server_name}[/bold] into {output}"
+    )
+
+
 def _require_snapshot_file(path: Path, label: str) -> Path:
     if not path.is_file():
         console.print(
@@ -167,8 +236,7 @@ def compare(
     counts = report.counts_by_severity()
     _log_verbose(
         verbose,
-        f"Changes={len(report.changes)} counts={counts} "
-        f"compatible={report.is_compatible}",
+        f"Changes={len(report.changes)} counts={counts} compatible={report.is_compatible}",
     )
 
     table = Table(title=f"Tool-Semantics: {report.baseline} → {report.candidate}")

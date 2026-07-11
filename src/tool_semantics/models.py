@@ -32,6 +32,23 @@ class ToolContract(BaseModel):
     risk: RiskLevel = RiskLevel.UNKNOWN
 
 
+class PromptContract(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    description: str = ""
+    arguments: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ResourceContract(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    uri: str
+    name: str
+    description: str = ""
+    mime_type: str | None = None
+
+
 class InterfaceSnapshot(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -40,4 +57,6 @@ class InterfaceSnapshot(BaseModel):
     server_name: str
     server_version: str | None = None
     tools: list[ToolContract] = Field(default_factory=list)
+    prompts: list[PromptContract] = Field(default_factory=list)
+    resources: list[ResourceContract] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)

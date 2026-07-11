@@ -1,0 +1,28 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "weather-demo",
+  "serverVersion": "1.0.0",
+  "tools": [
+    {
+      "name": "get_forecast",
+      "description": "Return a short weather forecast for a city.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {"type": "string", "description": "City name"},
+          "units": {"type": "string", "enum": ["metric", "imperial"], "default": "metric"}
+        },
+        "required": ["city"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "summary": {"type": "string"},
+          "temperature": {"type": "number"}
+        },
+        "required": ["summary"]
+      }
+    }
+  ]
+}

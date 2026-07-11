@@ -1,0 +1,139 @@
+name: Compare tool interfaces
+description: Capture or compare Tool-Semantics snapshots and optionally comment on a pull request.
+author: Tool-Semantics contributors
+
+branding:
+  icon: git-compare
+  color: green
+
+inputs:
+  baseline:
+    description: Path to the baseline snapshot JSON (from a prior capture).
+    required: true
+  candidate:
+    description: Path to the candidate snapshot JSON.
+    required: true
+  config:
+    description: Optional path to .tool-semantics.toml ignore rules.
+    required: false
+    default: ""
+  comment-on-pr:
+    description: If true, post or update a PR comment with the Markdown report.
+    required: false
+    default: "true"
+  fail-on-breaking:
+    description: If true, fail the job when compare exits 1.
+    required: false
+    default: "true"
+  working-directory:
+    description: Working directory for the compare command.
+    required: false
+    default: "."
+
+outputs:
+  compatible:
+    description: "true if no breaking/critical changes remain after ignore rules."
+    value: ${{ steps.compare.outputs.compatible }}
+  report-path:
+    description: Path to the generated Markdown report.
+    value: ${{ steps.compare.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install tool-semantics
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f "pyproject.toml" ] && grep -q 'name = "tool-semantics"' pyproject.toml; then
+          pip install -e .
+        else
+          pip install tool-semantics || pip install "tool-semantics @ git+https://github.com/askmy-stack/tool-semantics.git"
+        fi
+
+    - name: Compare snapshots
+      id: compare
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASELINE: ${{ inputs.baseline }}
+        CANDIDATE: ${{ inputs.candidate }}
+        CONFIG: ${{ inputs.config }}
+        FAIL_ON_BREAKING: ${{ inputs.fail-on-breaking }}
+      run: |
+        set +e
+        REPORT_DIR="${RUNNER_TEMP:-/tmp}/tool-semantics"
+        mkdir -p "$REPORT_DIR"
+        REPORT="$REPORT_DIR/report.md"
+        JSON="$REPORT_DIR/report.json"
+        ARGS=(compare "$BASELINE" "$CANDIDATE" --markdown-output "$REPORT" --json-output "$JSON")
+        if [ -n "$CONFIG" ]; then
+          ARGS+=(--config "$CONFIG")
+        fi
+        tool-semantics "${ARGS[@]}"
+        CODE=$?
+        set -e
+        if [ ! -f "$JSON" ]; then
+          echo "compatible=false" >> "$GITHUB_OUTPUT"
+          echo "report-path=$REPORT" >> "$GITHUB_OUTPUT"
+          exit "$CODE"
+        fi
+        COMPATIBLE=$(python -c "import json; print(str(json.load(open('$JSON'))['is_compatible']).lower())")
+        echo "compatible=$COMPATIBLE" >> "$GITHUB_OUTPUT"
+        echo "report-path=$REPORT" >> "$GITHUB_OUTPUT"
+        if [ "$FAIL_ON_BREAKING" = "true" ] && [ "$CODE" -eq 1 ]; then
+          exit 1
+        fi
+        if [ "$CODE" -ge 2 ]; then
+          exit "$CODE"
+        fi
+        exit 0
+
+    - name: Comment on pull request
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      env:
+        REPORT_PATH: ${{ steps.compare.outputs.report-path }}
+        COMPATIBLE: ${{ steps.compare.outputs.compatible }}
+      with:
+        script: |
+          const fs = require('fs');
+          const marker = '<!-- tool-semantics-report -->';
+          const path = process.env.REPORT_PATH;
+          const compatible = process.env.COMPATIBLE === 'true';
+          let body = marker + '\n## Tool-Semantics compatibility\n\n';
+          body += compatible
+            ? '**Result:** compatible\n\n'
+            : '**Result:** breaking / critical changes detected\n\n';
+          if (path && fs.existsSync(path)) {
+            body += fs.readFileSync(path, 'utf8');
+          } else {
+            body += '_No Markdown report was produced._\n';
+          }
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const existing = comments.find(c => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
