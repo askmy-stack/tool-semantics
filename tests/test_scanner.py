@@ -25,3 +25,49 @@ def test_capture_rejects_non_object_root(tmp_path: Path) -> None:
     bad.write_text("[]", encoding="utf-8")
     with pytest.raises(ManifestError, match="Manifest root must be an object"):
         capture_manifest(bad)
+
+
+def test_capture_rejects_tools_not_array(tmp_path: Path) -> None:
+    bad = tmp_path / "tools_not_array.json"
+    bad.write_text('{"tools": {"name": "broken"}}', encoding="utf-8")
+    with pytest.raises(ManifestError, match="'tools' must be an array"):
+        capture_manifest(bad)
+
+
+def test_capture_rejects_tool_missing_name(tmp_path: Path) -> None:
+    bad = tmp_path / "missing_name.json"
+    bad.write_text(
+        '{"tools": [{"description": "no name field"}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(ManifestError, match="Each tool must contain a string 'name'"):
+        capture_manifest(bad)
+
+
+def test_capture_rejects_non_object_input_schema(tmp_path: Path) -> None:
+    bad = tmp_path / "bad_input_schema.json"
+    bad.write_text(
+        '{"tools": [{"name": "demo", "inputSchema": ["not", "an", "object"]}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ManifestError,
+        match="Tool 'demo' inputSchema must be an object",
+    ):
+        capture_manifest(bad)
+
+
+def test_capture_rejects_non_object_parameter_schema(tmp_path: Path) -> None:
+    bad = tmp_path / "bad_param_schema.json"
+    bad.write_text(
+        (
+            '{"tools": [{"name": "demo", "inputSchema": '
+            '{"type": "object", "properties": {"query": "not-an-object"}}}]}'
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ManifestError,
+        match="Schema for parameter 'query' must be an object",
+    ):
+        capture_manifest(bad)
