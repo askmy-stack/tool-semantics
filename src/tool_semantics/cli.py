@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from tool_semantics import __version__
+from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.report import render_markdown, severity_style
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
@@ -21,6 +22,7 @@ app = typer.Typer(
     ),
 )
 console = Console()
+err_console = Console(stderr=True)
 
 
 def version_callback(value: bool) -> None:
@@ -36,6 +38,11 @@ def main(
     ] = None,
 ) -> None:
     """Tool-Semantics command-line interface."""
+
+
+def _log_verbose(verbose: bool, message: str) -> None:
+    if verbose:
+        err_console.print(f"[dim]{message}[/dim]")
 
 
 @app.command()
@@ -56,14 +63,28 @@ def capture(
             help="Where to write the normalized snapshot JSON.",
         ),
     ] = Path(".tool-semantics/snapshot.json"),
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Log capture steps to stderr (paths and tool counts).",
+        ),
+    ] = False,
 ) -> None:
     """Normalize a JSON tool manifest into a Tool-Semantics snapshot."""
+    _log_verbose(verbose, f"Reading manifest {manifest.resolve()}")
     try:
         snapshot = capture_manifest(manifest)
         write_snapshot(snapshot, output)
     except ManifestError as exc:
         console.print(f"[red]Capture failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
+    _log_verbose(
+        verbose,
+        f"Wrote snapshot {output.resolve()} with {len(snapshot.tools)} tools "
+        f"(server={snapshot.server_name})",
+    )
     console.print(
         f"[green]Captured[/green] {len(snapshot.tools)} tools from "
         f"[bold]{snapshot.server_name}[/bold] into {output}"
@@ -105,15 +126,50 @@ def compare(
             help="Write a GitHub-friendly Markdown report.",
         ),
     ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to `.tool-semantics.toml` (default: look in cwd).",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Log compare steps to stderr (paths, tool counts, change totals).",
+        ),
+    ] = False,
 ) -> None:
     """Compare two Tool-Semantics snapshots (exit 1 on breaking/critical)."""
     _require_snapshot_file(baseline, "Baseline")
     _require_snapshot_file(candidate, "Candidate")
+    _log_verbose(verbose, f"Loading baseline {baseline.resolve()}")
+    _log_verbose(verbose, f"Loading candidate {candidate.resolve()}")
     try:
-        report = compare_snapshots(read_snapshot(baseline), read_snapshot(candidate))
-    except ManifestError as exc:
+        config_data = load_config(config)
+        baseline_snap = read_snapshot(baseline)
+        candidate_snap = read_snapshot(candidate)
+        _log_verbose(
+            verbose,
+            f"Tools: baseline={len(baseline_snap.tools)} candidate={len(candidate_snap.tools)}",
+        )
+        report = apply_ignore_rules(
+            compare_snapshots(baseline_snap, candidate_snap),
+            config_data,
+        )
+    except (ManifestError, FileNotFoundError, ValueError) as exc:
         console.print(f"[red]Comparison failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
+
+    counts = report.counts_by_severity()
+    _log_verbose(
+        verbose,
+        f"Changes={len(report.changes)} counts={counts} "
+        f"compatible={report.is_compatible}",
+    )
 
     table = Table(title=f"Tool-Semantics: {report.baseline} → {report.candidate}")
     for heading in ("Severity", "Code", "Subject", "Change"):

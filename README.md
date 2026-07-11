@@ -134,14 +134,20 @@ print("compatible:", report.is_compatible)
 
 ```bash
 tool-semantics --version
-tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json]
+tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json] [-v]
 tool-semantics compare <baseline.json> <candidate.json> \
   [--json-output report.json] \
-  [--markdown-output report.md]
+  [--markdown-output report.md] \
+  [--config .tool-semantics.toml] \
+  [-v]
 ```
 
+- `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
+- `--config` loads ignore rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
+
 JSON reports include `changes`, `is_compatible`, and `counts` by severity.  
-Change-code catalog: [docs/change-codes.md](docs/change-codes.md).
+Change-code catalog: [docs/change-codes.md](docs/change-codes.md).  
+Ignore-config schema: [docs/config.md](docs/config.md).
 
 ## Project layout
 

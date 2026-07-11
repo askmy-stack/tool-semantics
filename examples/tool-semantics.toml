@@ -1,0 +1,18 @@
+# Example Tool-Semantics config — copy to `.tool-semantics.toml` in your project root.
+#
+# Ignored changes are still listed in reports as severity `info` with an `[ignored]`
+# prefix, but they do not fail CI (`compare` exit code stays 0 when only ignored
+# breaks remain).
+
+[ignore]
+# Stable change codes from docs/change-codes.md
+codes = [
+  # "tool.description_changed",
+  # "parameter.default_changed",
+]
+
+# fnmatch patterns matched against change subjects (tool name or tool.param)
+subjects = [
+  # "experimental_*",
+  # "*.internal",
+]
