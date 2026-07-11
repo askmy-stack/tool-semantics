@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tool_semantics.scanner import ManifestError, capture_manifest
+from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
 
 
 def test_capture_manifest() -> None:
@@ -71,3 +71,25 @@ def test_capture_rejects_non_object_parameter_schema(tmp_path: Path) -> None:
         match="Schema for parameter 'query' must be an object",
     ):
         capture_manifest(bad)
+
+
+def test_read_snapshot_accepts_supported_version(tmp_path: Path) -> None:
+    snapshot = capture_manifest(Path("examples/github_server_v1.json"))
+    path = tmp_path / "snap.json"
+    write_snapshot(snapshot, path)
+    loaded = read_snapshot(path)
+    assert loaded.tool_semantics_version == "0.1"
+    assert loaded.server_name == "github-demo"
+
+
+def test_read_snapshot_rejects_unsupported_version(tmp_path: Path) -> None:
+    path = tmp_path / "future.json"
+    path.write_text(
+        (
+            '{"tool_semantics_version": "9.9", "protocol": "manifest", '
+            '"server_name": "demo", "tools": []}'
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ManifestError, match="Unsupported tool_semantics_version '9.9'"):
+        read_snapshot(path)
