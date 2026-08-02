@@ -46,7 +46,7 @@ Changelog = "https://github.com/askmy-stack/tool-semantics/blob/main/CHANGELOG.m
 [project.optional-dependencies]
 dev = [
   "pytest>=8,<9",
-  "pytest-cov>=5,<7",
+  "pytest-cov>=5,<8",
   "ruff>=0.6,<1",
   "mypy>=1.11,<2",
   "pre-commit>=3.8,<5",
