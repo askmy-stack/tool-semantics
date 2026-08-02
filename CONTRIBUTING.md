@@ -21,6 +21,10 @@ mypy src
 pytest --cov=tool_semantics
 ```
 
+## Dependency updates
+
+Dependabot opens weekly PRs for GitHub Actions and Python dependencies. These updates are welcome — review CI results and merge when green.
+
 ## Typing
 
 The package ships a `py.typed` marker. Keep public APIs fully typed; `mypy` runs in strict mode on `src/`.
