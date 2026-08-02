@@ -13,10 +13,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/askmy-stack/Tool-Semantics/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/askmy-stack/Tool-Semantics/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/askmy-stack/tool-semantics/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/askmy-stack/tool-semantics/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.python.org/downloads/"><img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-0d9488?logo=python&logoColor=white" /></a>
   <a href="LICENSE"><img alt="License Apache-2.0" src="https://img.shields.io/badge/license-Apache%202.0-1f2933" /></a>
-  <a href="https://github.com/askmy-stack/Tool-Semantics/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><img alt="Good first issues" src="https://img.shields.io/badge/good%20first%20issues-open-f59e0b" /></a>
+  <a href="https://github.com/askmy-stack/tool-semantics/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><img alt="Good first issues" src="https://img.shields.io/badge/good%20first%20issues-open-f59e0b" /></a>
 </p>
 
 ---
@@ -196,7 +196,7 @@ We welcome issues and PRs — especially documentation fixes, tests, and compati
 
 - Read [CONTRIBUTING.md](CONTRIBUTING.md)
 - Follow the [Code of Conduct](CODE_OF_CONDUCT.md)
-- Browse [good first issues](https://github.com/askmy-stack/Tool-Semantics/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- Browse [good first issues](https://github.com/askmy-stack/tool-semantics/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 
 ## Security
 

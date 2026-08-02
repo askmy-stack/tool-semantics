@@ -38,10 +38,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/askmy-stack/Tool-Semantics"
-Repository = "https://github.com/askmy-stack/Tool-Semantics"
-Issues = "https://github.com/askmy-stack/Tool-Semantics/issues"
-Changelog = "https://github.com/askmy-stack/Tool-Semantics/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/askmy-stack/tool-semantics"
+Repository = "https://github.com/askmy-stack/tool-semantics"
+Issues = "https://github.com/askmy-stack/tool-semantics/issues"
+Changelog = "https://github.com/askmy-stack/tool-semantics/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
