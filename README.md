@@ -171,8 +171,15 @@ from tool_semantics.probes import Probe, ProbeKind, evaluate_probes
 snapshot = capture_manifest(Path("examples/github_server_v1.json"))
 report = evaluate_probes(
     snapshot,
-    [Probe(id="search", intent="find issues", expected_tool="search_issues",
-           required_params=["query"], kind=ProbeKind.POSITIVE)],
+    [
+        Probe(
+            id="search",
+            intent="find issues",
+            expected_tool="search_issues",
+            required_params=["query"],
+            kind=ProbeKind.POSITIVE,
+        )
+    ],
 )
 assert report.passed
 ```
