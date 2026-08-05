@@ -17,9 +17,11 @@ No long-lived PyPI API token is stored in the repository.
 ## Release steps
 
 1. Bump `version` in `pyproject.toml` and `src/tool_semantics/__init__.py`.
-2. Update `CHANGELOG.md`.
-3. Tag and publish a GitHub Release (`vX.Y.Z`).
-4. The `Publish to PyPI` workflow builds sdist/wheel and uploads via OIDC.
+2. Update `CHANGELOG.md` (move Unreleased notes into a dated `X.Y.Z` section).
+3. Update Action pin examples in `docs/github-action.md` to `@vX.Y.Z`.
+4. Tag and publish a GitHub Release (`vX.Y.Z`).
+5. The `Publish to PyPI` workflow builds sdist/wheel and uploads via OIDC.
+6. Verify `pip install tool-semantics==X.Y.Z` in a clean venv.
 
 ## Local dry-run
 
