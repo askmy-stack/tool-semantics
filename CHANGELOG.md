@@ -5,6 +5,13 @@ All notable changes to Tool-Semantics will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- (none yet)
+
+## [0.2.0] — 2026-08-04
+
+First PyPI release. Install with `pip install tool-semantics`.
+
+### Added
 - `tool.output_schema_added` / `removed` / `changed` detection (#8)
 - `parameter.default_changed` warning when defaults are added, removed, or changed (#15)
 - Default-only schema edits no longer emit `parameter.schema_changed`

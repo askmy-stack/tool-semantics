@@ -105,8 +105,8 @@ Result: breaking
 ## Install (library)
 
 ```bash
-pip install -e .
-# later: pip install tool-semantics
+pip install tool-semantics
+# or from source: pip install -e .
 ```
 
 ```python

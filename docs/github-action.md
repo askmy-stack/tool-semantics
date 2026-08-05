@@ -9,6 +9,20 @@ the Markdown report as a pull-request comment.
 askmy-stack/tool-semantics/.github/actions/compare
 ```
 
+## Versioning the Action
+
+Pin the composite Action to a **release tag** (or commit SHA) so consumer CI stays
+reproducible. Tags follow the package version (`v0.2.0`, …). A floating major pin
+such as `@v0` is fine once a `v0` moving tag exists; prefer an exact tag for
+production workflows.
+
+`@main` tracks the tip of the default branch and **may break** without notice —
+use it only for local experiments.
+
+After each GitHub Release, the tagged tree includes this composite Action, so
+`uses: askmy-stack/tool-semantics/.github/actions/compare@vX.Y.Z` resolves from
+that tag.
+
 ## Example consumer workflow
 
 ```yaml
@@ -27,10 +41,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Capture baseline and candidate
         run: |
-          pip install "tool-semantics @ git+https://github.com/askmy-stack/tool-semantics.git"
+          pip install "tool-semantics==0.2.0"
           tool-semantics capture manifests/baseline.json -o .tool-semantics/baseline.json
           tool-semantics capture manifests/candidate.json -o .tool-semantics/candidate.json
-      - uses: askmy-stack/tool-semantics/.github/actions/compare@main
+      - uses: askmy-stack/tool-semantics/.github/actions/compare@v0.2.0
         with:
           baseline: .tool-semantics/baseline.json
           candidate: .tool-semantics/candidate.json
