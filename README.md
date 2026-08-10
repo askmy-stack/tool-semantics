@@ -105,10 +105,8 @@ Result: breaking
 ## Install (library)
 
 ```bash
-# The first PyPI release is not published yet.
-# Install from this repository for now:
-pip install "tool-semantics @ git+https://github.com/askmy-stack/tool-semantics.git"
-# or, for local development: pip install -e .
+pip install tool-semantics
+# or from source: pip install -e .
 ```
 
 ```python
