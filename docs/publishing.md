@@ -1,8 +1,9 @@
 # Publishing
 
-Tool-Semantics is published to PyPI from GitHub Releases using
-[trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC).
-No long-lived PyPI API token is stored in the repository.
+Tool-Semantics will be published to PyPI from GitHub Releases using
+[trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC), after the
+one-time PyPI configuration below is complete. No long-lived PyPI API token is
+stored in the repository.
 
 ## One-time PyPI setup
 

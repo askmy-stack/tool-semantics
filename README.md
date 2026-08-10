@@ -42,7 +42,7 @@ AI agents do not call tools the way typed clients do. They choose tools from **d
 | 4. Execution | Do calls still succeed with prior argument patterns? |
 | 5. Intent / side effects | Did risk, confirmation needs, or outcomes change? |
 
-The MVP implements deterministic interface snapshots and structural comparison (layers 1–2, with warnings that point at 3–5). Live MCP capture and model-based behavioral testing are on the [roadmap](ROADMAP.md).
+The MVP implements deterministic interface snapshots and structural comparison (layers 1–2, with warnings that point at 3–5), plus local MCP capture over stdio. Remote MCP transport and model-based behavioral testing are on the [roadmap](ROADMAP.md).
 
 ## How it works
 
@@ -105,8 +105,10 @@ Result: breaking
 ## Install (library)
 
 ```bash
-pip install tool-semantics
-# or from source: pip install -e .
+# The first PyPI release is not published yet.
+# Install from this repository for now:
+pip install "tool-semantics @ git+https://github.com/askmy-stack/tool-semantics.git"
+# or, for local development: pip install -e .
 ```
 
 ```python
@@ -195,7 +197,7 @@ docs/assets/          # README visuals
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for milestones: live MCP capture, richer compatibility rules, behavioral contracts, model matrices, PR reporting, and migration adapters.
+See [ROADMAP.md](ROADMAP.md) for milestones: remote MCP capture, richer compatibility rules, behavioral contracts, model matrices, PR reporting, and migration adapters.
 
 ## Contributing
 
