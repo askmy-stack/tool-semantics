@@ -7,10 +7,9 @@ All notable changes to Tool-Semantics will be documented in this file.
 ### Added
 - (none yet)
 
-## [0.2.0] — Unreleased
+## [0.2.0] — 2026-08-10
 
-The release artifacts and GitHub release tag have not yet been published. Until
-then, install directly from the repository as documented in the README.
+First PyPI release. Install with `pip install tool-semantics`.
 
 ### Added
 - `tool.output_schema_added` / `removed` / `changed` detection (#8)
