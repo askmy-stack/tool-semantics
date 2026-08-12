@@ -11,8 +11,11 @@ No long-lived PyPI API token is stored in the repository.
    - Owner: `askmy-stack`
    - Repository: `tool-semantics`
    - Workflow: `publish.yml`
-   - Environment: `pypi`
-3. In GitHub, create an Environment named `pypi` (optional protection rules).
+   - Environment: leave blank
+
+The workflow intentionally has no GitHub Environment. If an environment is added
+later, add the same environment name to PyPI's trusted-publisher configuration
+first; otherwise PyPI will reject the environment-scoped OIDC identity.
 
 ## Release steps
 
