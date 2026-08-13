@@ -21,6 +21,10 @@ inputs:
     description: If true, post or update a PR comment with the Markdown report.
     required: false
     default: "true"
+  upload-artifacts:
+    description: Upload candidate snapshot and generated reports as a workflow artifact.
+    required: false
+    default: "false"
   fail-on-breaking:
     description: Deprecated alias for policy=compatible when true.
     required: false
@@ -155,3 +159,14 @@ runs:
               body,
             });
           }
+
+    - name: Upload report artifact
+      if: ${{ inputs.upload-artifacts == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: tool-semantics-report
+        if-no-files-found: error
+        path: |
+          ${{ inputs.candidate }}
+          ${{ steps.compare.outputs.report-path }}
+          ${{ runner.temp }}/tool-semantics/report.json
