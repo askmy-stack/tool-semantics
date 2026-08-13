@@ -7,6 +7,19 @@ All notable changes to Tool-Semantics will be documented in this file.
 ### Added
 - (none yet)
 
+## [0.3.0] — 2026-08-12
+
+### Added
+- Optional redacted provenance sidecars for `capture` and `capture-mcp`
+  snapshots via `--provenance-output`
+- Git-tracked approved-baseline workflow documentation for compatibility checks
+- Optional `upload-artifacts` support in the composite GitHub Action, preserving
+  the candidate snapshot and Markdown/JSON comparison reports
+
+### Security
+- Redact secret-like command arguments and command-form environment assignments
+  from provenance sidecars
+
 ## [0.2.0] — 2026-08-10
 
 First PyPI release. Install with `pip install tool-semantics`.

@@ -12,7 +12,7 @@ askmy-stack/tool-semantics/.github/actions/compare
 ## Versioning the Action
 
 Pin the composite Action to a **release tag** (or commit SHA) so consumer CI stays
-reproducible. Tags follow the package version (`v0.2.0`, …). A floating major pin
+reproducible. Tags follow the package version (`v0.3.0`, …). A floating major pin
 such as `@v0` is fine once a `v0` moving tag exists; prefer an exact tag for
 production workflows.
 
@@ -43,9 +43,9 @@ jobs:
       # committed before this pull request.
       - name: Capture candidate snapshot
         run: |
-          pip install "tool-semantics==0.2.0"
+          pip install "tool-semantics==0.3.0"
           tool-semantics capture manifests/candidate.json -o .tool-semantics/candidate.json
-      - uses: askmy-stack/tool-semantics/.github/actions/compare@v0.2.0
+      - uses: askmy-stack/tool-semantics/.github/actions/compare@v0.3.0
         with:
           baseline: .tool-semantics/baselines/github.json
           candidate: .tool-semantics/candidate.json
