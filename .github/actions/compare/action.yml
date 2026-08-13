@@ -160,13 +160,30 @@ runs:
             });
           }
 
+    - name: Resolve artifact paths
+      id: artifact-paths
+      if: ${{ always() && inputs.upload-artifacts == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CANDIDATE: ${{ inputs.candidate }}
+      run: |
+        python - <<'PY'
+        import os
+        from pathlib import Path
+
+        candidate = Path(os.environ["CANDIDATE"]).resolve()
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+            print(f"candidate-path={candidate}", file=output)
+        PY
+
     - name: Upload report artifact
-      if: ${{ inputs.upload-artifacts == 'true' }}
+      if: ${{ always() && inputs.upload-artifacts == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: tool-semantics-report
         if-no-files-found: error
         path: |
-          ${{ inputs.candidate }}
+          ${{ steps.artifact-paths.outputs.candidate-path }}
           ${{ steps.compare.outputs.report-path }}
           ${{ runner.temp }}/tool-semantics/report.json
