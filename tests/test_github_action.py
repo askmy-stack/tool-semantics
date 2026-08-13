@@ -30,3 +30,8 @@ def test_compare_action_requires_every_requested_artifact_file() -> None:
     assert '"${{ steps.compare.outputs.report-path }}"' in action
     assert '"${{ runner.temp }}/tool-semantics/report.json"' in action
     assert "Missing required artifact file: $path" in action
+    assert "id: validate-artifact-paths" in action
+    assert (
+        "if: ${{ always() && inputs.upload-artifacts == 'true' && "
+        "steps.validate-artifact-paths.outcome == 'success' }}"
+    ) in action

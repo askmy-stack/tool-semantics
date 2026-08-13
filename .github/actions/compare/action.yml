@@ -180,6 +180,7 @@ runs:
       # All three files are required: an incomplete diagnostic artifact is misleading.
       # This runs after a compare failure as well when upload was explicitly requested.
     - name: Validate artifact paths
+      id: validate-artifact-paths
       if: ${{ always() && inputs.upload-artifacts == 'true' }}
       shell: bash
       run: |
@@ -194,7 +195,7 @@ runs:
         done
 
     - name: Upload report artifact
-      if: ${{ always() && inputs.upload-artifacts == 'true' }}
+      if: ${{ always() && inputs.upload-artifacts == 'true' && steps.validate-artifact-paths.outcome == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: tool-semantics-report

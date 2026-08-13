@@ -16,10 +16,6 @@ _COMMAND_SECRET_OPTION_PATTERN = re.compile(
 _COMMAND_HEADER_OPTION_PATTERN = re.compile(r"^(?:-H|--header)(?:=|$)", re.IGNORECASE)
 _ENVIRONMENT_KEY_PATTERN = re.compile(r"(?:^|_)(?:env|environment)(?:_|$)", re.IGNORECASE)
 _ENVIRONMENT_ASSIGNMENT_PATTERN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=", re.IGNORECASE)
-_SECRET_NAME_PATTERN = re.compile(
-    r"secret|token|password|api[_-]?key|authorization|credential|cookie",
-    re.IGNORECASE,
-)
 _REDACTED = "***REDACTED***"
 
 
@@ -53,7 +49,7 @@ def _redact_command_arguments(command: list[Any]) -> list[Any]:
         if not isinstance(argument, str):
             continue
         environment_assignment = _ENVIRONMENT_ASSIGNMENT_PATTERN.match(argument)
-        if environment_assignment and _SECRET_NAME_PATTERN.search(environment_assignment.group(1)):
+        if environment_assignment:
             redacted[index] = _REDACTED
         elif _COMMAND_SECRET_OPTION_PATTERN.match(argument) or _COMMAND_HEADER_OPTION_PATTERN.match(
             argument

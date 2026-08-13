@@ -99,6 +99,8 @@ def test_write_provenance_redacts_auth_options_and_environment_assignments(tmp_p
         {
             "command": [
                 "API_TOKEN=secret",
+                "GITHUB_PAT=secret",
+                "AWS_ACCESS_KEY_ID=secret",
                 "server",
                 "--auth=secret",
                 "--bearer-token=secret",
@@ -108,6 +110,8 @@ def test_write_provenance_redacts_auth_options_and_environment_assignments(tmp_p
 
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["source"]["command"] == [
+        "***REDACTED***",
+        "***REDACTED***",
         "***REDACTED***",
         "server",
         "***REDACTED***",
