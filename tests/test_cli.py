@@ -48,6 +48,16 @@ def test_capture_writes_requested_provenance(tmp_path: Path) -> None:
     }
 
 
+def test_capture_preserves_snapshot_write_os_error_without_provenance(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["capture", "examples/github_server_v1.json", "-o", str(tmp_path)],
+    )
+    assert result.exit_code == 1
+    assert isinstance(result.exception, IsADirectoryError)
+    assert "Capture failed:" not in result.stdout
+
+
 def test_capture_mcp_writes_redacted_requested_provenance(tmp_path: Path) -> None:
     snapshot = tmp_path / "snapshot.json"
     provenance = tmp_path / "snapshot.provenance.json"

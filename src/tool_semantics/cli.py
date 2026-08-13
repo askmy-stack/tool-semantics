@@ -84,15 +84,19 @@ def capture(
     try:
         snapshot = capture_manifest(manifest)
         write_snapshot(snapshot, output)
-        if provenance_output:
+    except ManifestError as exc:
+        console.print(f"[red]Capture failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    if provenance_output:
+        try:
             write_provenance(
                 output,
                 provenance_output,
                 {"kind": "manifest", "location": str(manifest)},
             )
-    except (ManifestError, OSError) as exc:
-        console.print(f"[red]Capture failed:[/red] {exc}")
-        raise typer.Exit(code=2) from exc
+        except OSError as exc:
+            console.print(f"[red]Capture failed:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
     _log_verbose(
         verbose,
         f"Wrote snapshot {output.resolve()} with {len(snapshot.tools)} tools "
@@ -159,15 +163,19 @@ def capture_mcp(
                 redact=not no_redact,
             )
         write_snapshot(snapshot, output)
-        if provenance_output and command:
+    except (McpCaptureError, ManifestError) as exc:
+        console.print(f"[red]MCP capture failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    if provenance_output and command:
+        try:
             write_provenance(
                 output,
                 provenance_output,
                 {"kind": "mcp-stdio", "command": command},
             )
-    except (McpCaptureError, ManifestError, OSError) as exc:
-        console.print(f"[red]MCP capture failed:[/red] {exc}")
-        raise typer.Exit(code=2) from exc
+        except OSError as exc:
+            console.print(f"[red]MCP capture failed:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
     _log_verbose(
         verbose,
         (
