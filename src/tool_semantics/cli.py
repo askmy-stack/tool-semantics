@@ -13,6 +13,7 @@ from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.mcp_capture import McpCaptureError, capture_mcp_sse, capture_mcp_stdio
 from tool_semantics.policy import policy_from_name
+from tool_semantics.provenance import write_provenance
 from tool_semantics.report import render_markdown, severity_style
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
 
@@ -65,6 +66,10 @@ def capture(
             help="Where to write the normalized snapshot JSON.",
         ),
     ] = Path(".tool-semantics/snapshot.json"),
+    provenance_output: Annotated[
+        Path | None,
+        typer.Option("--provenance-output", help="Write capture provenance JSON separately."),
+    ] = None,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -79,7 +84,13 @@ def capture(
     try:
         snapshot = capture_manifest(manifest)
         write_snapshot(snapshot, output)
-    except ManifestError as exc:
+        if provenance_output:
+            write_provenance(
+                output,
+                provenance_output,
+                {"kind": "manifest", "location": str(manifest)},
+            )
+    except (ManifestError, OSError) as exc:
         console.print(f"[red]Capture failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
     _log_verbose(
@@ -109,6 +120,10 @@ def capture_mcp(
             help="Where to write the normalized snapshot JSON.",
         ),
     ] = Path(".tool-semantics/snapshot.json"),
+    provenance_output: Annotated[
+        Path | None,
+        typer.Option("--provenance-output", help="Write capture provenance JSON separately."),
+    ] = None,
     sse_url: Annotated[
         str | None,
         typer.Option("--sse", help="SSE MCP endpoint URL (not implemented yet)."),
@@ -144,7 +159,13 @@ def capture_mcp(
                 redact=not no_redact,
             )
         write_snapshot(snapshot, output)
-    except (McpCaptureError, ManifestError) as exc:
+        if provenance_output and command:
+            write_provenance(
+                output,
+                provenance_output,
+                {"kind": "mcp-stdio", "command": command},
+            )
+    except (McpCaptureError, ManifestError, OSError) as exc:
         console.print(f"[red]MCP capture failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
     _log_verbose(

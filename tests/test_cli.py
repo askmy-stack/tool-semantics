@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -5,6 +6,7 @@ from typer.testing import CliRunner
 from tool_semantics.cli import app
 
 runner = CliRunner()
+FIXTURE = Path(__file__).parent / "fixtures" / "fake_mcp_server.py"
 
 
 def test_capture_verbose_writes_stderr(tmp_path: Path) -> None:
@@ -22,6 +24,54 @@ def test_capture_verbose_writes_stderr(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Reading manifest" in result.stderr
     assert output.is_file()
+
+
+def test_capture_writes_requested_provenance(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot.json"
+    provenance = tmp_path / "snapshot.provenance.json"
+    result = runner.invoke(
+        app,
+        [
+            "capture",
+            "examples/github_server_v1.json",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(provenance),
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(provenance.read_text(encoding="utf-8"))
+    assert payload["source"] == {
+        "kind": "manifest",
+        "location": "examples/github_server_v1.json",
+    }
+
+
+def test_capture_mcp_writes_redacted_requested_provenance(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot.json"
+    provenance = tmp_path / "snapshot.provenance.json"
+    result = runner.invoke(
+        app,
+        [
+            "capture-mcp",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(provenance),
+            "--",
+            "python",
+            str(FIXTURE),
+            "--token",
+            "command-secret",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(provenance.read_text(encoding="utf-8"))
+    assert payload["source"] == {
+        "kind": "mcp-stdio",
+        "command": ["python", str(FIXTURE), "--token", "***REDACTED***"],
+    }
 
 
 def test_compare_verbose_and_config_ignore(tmp_path: Path) -> None:
