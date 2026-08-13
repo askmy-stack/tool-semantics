@@ -13,6 +13,10 @@
   resolution continues to use the requested working directory.
 - Applied the exact Ruff formatting changes required in the snapshot-storage
   plan, provenance module, and Action regression test.
+- P1 re-review follow-up: all command-form `NAME=value` environment assignments
+  are redacted, including names such as `GITHUB_PAT` and `AWS_ACCESS_KEY_ID`.
+  The Action upload step now requires the successful outcome of the complete
+  artifact-path validation step while retaining `always()` for failed compares.
 
 ## Verification
 
@@ -27,3 +31,7 @@
 ## Implementation commit
 
 `657f9b44ba901722d30f43a5e6beee865799b6b8` (`fix snapshot storage review findings`)
+
+## P1 re-review follow-up commit
+
+`e4729635e0fd961466fd56523a8e05cff4a5a6fd` (`harden snapshot artifact and provenance checks`)
