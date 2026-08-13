@@ -14,6 +14,7 @@ _COMMAND_SECRET_OPTION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _COMMAND_HEADER_OPTION_PATTERN = re.compile(r"^(?:-H|--header)(?:=|$)", re.IGNORECASE)
+_COMMAND_ENVIRONMENT_OPTION_PATTERN = re.compile(r"^(?:--env|-e)(?:=|$)", re.IGNORECASE)
 _ENVIRONMENT_KEY_PATTERN = re.compile(r"(?:^|_)(?:env|environment)(?:_|$)", re.IGNORECASE)
 _ENVIRONMENT_ASSIGNMENT_PATTERN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=", re.IGNORECASE)
 _REDACTED = "***REDACTED***"
@@ -51,6 +52,11 @@ def _redact_command_arguments(command: list[Any]) -> list[Any]:
         environment_assignment = _ENVIRONMENT_ASSIGNMENT_PATTERN.match(argument)
         if environment_assignment:
             redacted[index] = _REDACTED
+        elif _COMMAND_ENVIRONMENT_OPTION_PATTERN.match(argument):
+            if "=" in argument:
+                redacted[index] = f"{argument.split('=', maxsplit=1)[0]}={_REDACTED}"
+            elif index + 1 < len(redacted):
+                redacted[index + 1] = _REDACTED
         elif _COMMAND_SECRET_OPTION_PATTERN.match(argument) or _COMMAND_HEADER_OPTION_PATTERN.match(
             argument
         ):
