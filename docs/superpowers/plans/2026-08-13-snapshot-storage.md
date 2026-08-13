@@ -134,8 +134,12 @@ def test_capture_writes_requested_provenance(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [
-            "capture", "examples/github_server_v1.json", "-o", str(snapshot),
-            "--provenance-output", str(provenance),
+            "capture",
+            "examples/github_server_v1.json",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(provenance),
         ],
     )
     assert result.exit_code == 0
@@ -158,7 +162,7 @@ Expected: FAIL because `--provenance-output` is not recognized.
 provenance_output: Annotated[
     Path | None,
     typer.Option("--provenance-output", help="Write capture provenance JSON separately."),
-] = None,
+] = (None,)
 ```
 
 After `write_snapshot(snapshot, output)`, call `write_provenance` only when the
@@ -195,9 +199,9 @@ git commit -m "add capture provenance output"
 ```python
 def test_compare_action_can_upload_candidate_and_reports() -> None:
     action = Path(".github/actions/compare/action.yml").read_text(encoding="utf-8")
-    assert 'upload-artifacts:' in action
+    assert "upload-artifacts:" in action
     assert 'default: "false"' in action
-    assert 'name: Upload report artifact' in action
+    assert "name: Upload report artifact" in action
     assert "inputs.upload-artifacts == 'true'" in action
     assert "${{ inputs.candidate }}" in action
     assert "${{ steps.compare.outputs.report-path }}" in action

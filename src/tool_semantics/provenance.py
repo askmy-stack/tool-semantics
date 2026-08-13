@@ -10,11 +10,16 @@ from typing import Any
 from tool_semantics.redact import redact_mapping
 
 _COMMAND_SECRET_OPTION_PATTERN = re.compile(
-    r"^--?(?:secret|token|password|api[_-]?key|authorization|credential|cookie)(?:=|$)",
+    r"^--?(?:[a-z0-9_-]*(?:secret|token|password|api[_-]?key|authorization|credential|cookie)|auth|bearer)(?:=|$)",
     re.IGNORECASE,
 )
 _COMMAND_HEADER_OPTION_PATTERN = re.compile(r"^(?:-H|--header)(?:=|$)", re.IGNORECASE)
 _ENVIRONMENT_KEY_PATTERN = re.compile(r"(?:^|_)(?:env|environment)(?:_|$)", re.IGNORECASE)
+_ENVIRONMENT_ASSIGNMENT_PATTERN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=", re.IGNORECASE)
+_SECRET_NAME_PATTERN = re.compile(
+    r"secret|token|password|api[_-]?key|authorization|credential|cookie",
+    re.IGNORECASE,
+)
 _REDACTED = "***REDACTED***"
 
 
@@ -25,10 +30,7 @@ def snapshot_sha256(snapshot_path: Path) -> str:
 
 def _redact_source(source: dict[str, Any]) -> dict[str, Any]:
     redacted = redact_mapping(source)
-    return {
-        key: _redact_source_value(key, value)
-        for key, value in redacted.items()
-    }
+    return {key: _redact_source_value(key, value) for key, value in redacted.items()}
 
 
 def _redact_source_value(key: str, value: Any) -> Any:
@@ -38,8 +40,7 @@ def _redact_source_value(key: str, value: Any) -> Any:
         return _redact_command_arguments(value)
     if isinstance(value, dict):
         return {
-            child_key: _redact_source_value(child_key, child)
-            for child_key, child in value.items()
+            child_key: _redact_source_value(child_key, child) for child_key, child in value.items()
         }
     if isinstance(value, list):
         return [_redact_source_value(key, item) for item in value]
@@ -49,9 +50,13 @@ def _redact_source_value(key: str, value: Any) -> Any:
 def _redact_command_arguments(command: list[Any]) -> list[Any]:
     redacted = list(command)
     for index, argument in enumerate(command):
-        if isinstance(argument, str) and (
-            _COMMAND_SECRET_OPTION_PATTERN.match(argument)
-            or _COMMAND_HEADER_OPTION_PATTERN.match(argument)
+        if not isinstance(argument, str):
+            continue
+        environment_assignment = _ENVIRONMENT_ASSIGNMENT_PATTERN.match(argument)
+        if environment_assignment and _SECRET_NAME_PATTERN.search(environment_assignment.group(1)):
+            redacted[index] = _REDACTED
+        elif _COMMAND_SECRET_OPTION_PATTERN.match(argument) or _COMMAND_HEADER_OPTION_PATTERN.match(
+            argument
         ):
             if "=" in argument:
                 redacted[index] = _REDACTED

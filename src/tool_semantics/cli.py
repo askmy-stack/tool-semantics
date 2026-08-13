@@ -48,6 +48,15 @@ def _log_verbose(verbose: bool, message: str) -> None:
         err_console.print(f"[dim]{message}[/dim]")
 
 
+def _reject_equivalent_output_paths(snapshot_path: Path, provenance_path: Path | None) -> None:
+    """Prevent a provenance sidecar from replacing the newly captured snapshot."""
+    if provenance_path is not None and snapshot_path.resolve() == provenance_path.resolve():
+        console.print(
+            "[red]Capture failed:[/red] Snapshot and provenance output paths must be different."
+        )
+        raise typer.Exit(code=2)
+
+
 @app.command()
 def capture(
     manifest: Annotated[
@@ -80,6 +89,7 @@ def capture(
     ] = False,
 ) -> None:
     """Normalize a JSON tool manifest into a Tool-Semantics snapshot."""
+    _reject_equivalent_output_paths(output, provenance_output)
     _log_verbose(verbose, f"Reading manifest {manifest.resolve()}")
     try:
         snapshot = capture_manifest(manifest)
@@ -146,6 +156,7 @@ def capture_mcp(
     ] = False,
 ) -> None:
     """Capture a live MCP server over stdio (or attempt SSE)."""
+    _reject_equivalent_output_paths(output, provenance_output)
     try:
         if sse_url:
             snapshot = capture_mcp_sse(sse_url)

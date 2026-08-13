@@ -85,3 +85,31 @@ def test_write_provenance_redacts_command_header_values(tmp_path: Path) -> None:
     assert payload["source"]["command"][2] == "***REDACTED***"
     assert payload["source"]["command"][3] == "***REDACTED***"
     assert payload["source"]["command"][5] == "***REDACTED***"
+
+
+def test_write_provenance_redacts_auth_options_and_environment_assignments(tmp_path: Path) -> None:
+    """Catch credential-bearing command forms that bypass snapshot redaction."""
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text("{}\n", encoding="utf-8")
+    output = tmp_path / "provenance.json"
+
+    write_provenance(
+        snapshot,
+        output,
+        {
+            "command": [
+                "API_TOKEN=secret",
+                "server",
+                "--auth=secret",
+                "--bearer-token=secret",
+            ]
+        },
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["source"]["command"] == [
+        "***REDACTED***",
+        "server",
+        "***REDACTED***",
+        "***REDACTED***",
+    ]

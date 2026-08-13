@@ -19,3 +19,14 @@ def test_compare_action_resolves_artifact_candidate_from_working_directory() -> 
     assert "id: artifact-paths" in action
     assert "working-directory: ${{ inputs.working-directory }}" in action
     assert 'Path(os.environ["CANDIDATE"]).resolve()' in action
+
+
+def test_compare_action_requires_every_requested_artifact_file() -> None:
+    action = Path(".github/actions/compare/action.yml").read_text(encoding="utf-8")
+
+    assert "name: Validate artifact paths" in action
+    assert "for path in" in action
+    assert '"${{ steps.artifact-paths.outputs.candidate-path }}"' in action
+    assert '"${{ steps.compare.outputs.report-path }}"' in action
+    assert '"${{ runner.temp }}/tool-semantics/report.json"' in action
+    assert "Missing required artifact file: $path" in action
