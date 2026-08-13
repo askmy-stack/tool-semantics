@@ -51,6 +51,7 @@ jobs:
           config: .tool-semantics.toml
           policy: strict
           comment-on-pr: "true"
+          upload-artifacts: "true"
 ```
 
 ## Inputs
@@ -62,6 +63,7 @@ jobs:
 | `config` | no | `""` | Optional ignore/policy config path |
 | `policy` | no | `""` | `compatible` / `strict` / `critical-only` / `permissive` |
 | `comment-on-pr` | no | `true` | Upsert a PR comment with the report |
+| `upload-artifacts` | no | `false` | Upload the candidate snapshot and generated reports as a workflow artifact |
 | `fail-on-breaking` | no | `true` | Legacy; `false` maps to `permissive` when `policy` unset |
 | `working-directory` | no | `.` | Directory for install/compare |
 
@@ -72,6 +74,14 @@ jobs:
 | `compatible` | `true` / `false` after ignore rules (breaking/critical free) |
 | `policy-failed` | `true` if the selected release policy failed |
 | `report-path` | Path to the Markdown report artifact |
+
+## Baselines and diagnostic artifacts
+
+Commit the approved baseline snapshot to Git and treat it as the compatibility
+contract. When `upload-artifacts: "true"`, the Action uploads the candidate
+snapshot plus the generated Markdown and JSON reports in the
+`tool-semantics-report` artifact. These files help diagnose a CI run; they do
+not replace the Git-tracked baseline.
 
 ## Permissions
 

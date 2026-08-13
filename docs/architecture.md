@@ -22,8 +22,11 @@ flowchart TB
   subgraph outputs
     CLI[Rich CLI table]
     MD[Markdown report]
-    JSON[JSON artifact]
+    JSON[JSON compatibility report]
+    SNAP[Snapshot JSON — canonical compare input]
+    PROV[Optional provenance sidecar]
     CI[Exit codes / GitHub Action]
+    ART[Optional CI diagnostic artifact]
   end
   M --> S
   L --> S
@@ -37,6 +40,9 @@ flowchart TB
   R --> MD
   R --> JSON
   R --> CI
+  N --> SNAP
+  SNAP -.-> PROV
+  CI -.-> ART
 ```
 
 ## Components
@@ -53,7 +59,14 @@ flowchart TB
 | **Migration adapters** (`adapters.py`) | Tool aliases, argument/enum maps, output wrappers |
 | **Report** (`report.py`) | Human-readable Markdown / styling helpers |
 | **CLI** (`cli.py`) | `capture`, `capture-mcp`, `compare`, and related entry points |
-| **GitHub Action** (`.github/actions/compare`) | CI compare + optional PR comment |
+| **GitHub Action** (`.github/actions/compare`) | CI compare + optional PR comment; can upload candidate and reports as a diagnostic artifact |
+
+Snapshots are the canonical JSON inputs to compatibility comparisons and are
+normally committed to Git as approved baselines. Capture can also write an
+optional provenance sidecar with capture context and the snapshot digest; it is
+not part of the snapshot schema or compare input. Optional CI artifacts contain
+the candidate snapshot and generated reports for diagnosis only, not a
+replacement for Git-tracked baselines.
 
 ### Still planned
 

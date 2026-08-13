@@ -134,8 +134,10 @@ print("compatible:", report.is_compatible)
 
 ```bash
 tool-semantics --version
-tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json] [-v]
-tool-semantics capture-mcp -o snap.json -- python my_mcp_server.py
+tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json] \
+  [--provenance-output snapshot.provenance.json] [-v]
+tool-semantics capture-mcp -o snap.json \
+  [--provenance-output snap.provenance.json] -- python my_mcp_server.py
 tool-semantics compare <baseline.json> <candidate.json> \
   [--json-output report.json] \
   [--markdown-output report.md] \
@@ -146,6 +148,22 @@ tool-semantics compare <baseline.json> <candidate.json> \
 - `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
 - `--config` loads ignore rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
 - `capture-mcp` speaks MCP JSON-RPC over stdio; secrets-like keys are redacted by default.
+
+### Approved baselines and provenance
+
+Capture the approved interface into a Git-tracked baseline. The snapshot is the
+contract that `compare` uses; review and commit it when an interface change is
+intentional.
+
+```bash
+tool-semantics capture examples/github_server_v1.json \
+  -o .tool-semantics/baselines/github.json \
+  --provenance-output .tool-semantics/baselines/github.provenance.json
+```
+
+The optional provenance sidecar records capture context and a digest of the
+snapshot. It is separate from the snapshot and never affects compatibility
+comparisons.
 
 JSON reports include `changes`, `is_compatible`, and `counts` by severity.  
 Change-code catalog: [docs/change-codes.md](docs/change-codes.md).  
