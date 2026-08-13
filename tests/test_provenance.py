@@ -42,3 +42,46 @@ def test_write_provenance_never_serializes_environment_values(tmp_path: Path) ->
 
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["source"]["environment"] == "***REDACTED***"
+
+
+def test_write_provenance_never_serializes_nested_environment_values(tmp_path: Path) -> None:
+    """Catch nested source configuration that exposes environment names or values."""
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text("{}\n", encoding="utf-8")
+    output = tmp_path / "provenance.json"
+
+    write_provenance(
+        snapshot,
+        output,
+        {"connection": {"environment": {"DATABASE_URL": "postgres://user:secret@host/db"}}},
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["source"]["connection"]["environment"] == "***REDACTED***"
+
+
+def test_write_provenance_redacts_command_header_values(tmp_path: Path) -> None:
+    """Catch command headers that would serialize authorization credentials."""
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text("{}\n", encoding="utf-8")
+    output = tmp_path / "provenance.json"
+
+    write_provenance(
+        snapshot,
+        output,
+        {
+            "command": [
+                "server",
+                "-H",
+                "Authorization: Bearer first-secret",
+                "--header=Authorization: Bearer second-secret",
+                "--header",
+                "Authorization: Bearer third-secret",
+            ]
+        },
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["source"]["command"][2] == "***REDACTED***"
+    assert payload["source"]["command"][3] == "***REDACTED***"
+    assert payload["source"]["command"][5] == "***REDACTED***"
