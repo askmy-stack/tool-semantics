@@ -17,6 +17,10 @@
   are redacted, including names such as `GITHUB_PAT` and `AWS_ACCESS_KEY_ID`.
   The Action upload step now requires the successful outcome of the complete
   artifact-path validation step while retaining `always()` for failed compares.
+- Final P1 follow-up: command environment forms `export NAME=value`,
+  `--env NAME=value`, `--env=NAME=value`, and `-e NAME=value` cannot serialize
+  secret values. Option syntax is retained where useful while the supplied
+  environment setting is redacted.
 
 ## Verification
 
@@ -35,3 +39,7 @@
 ## P1 re-review follow-up commit
 
 `e4729635e0fd961466fd56523a8e05cff4a5a6fd` (`harden snapshot artifact and provenance checks`)
+
+## Final P1 follow-up commit
+
+`fe53dc84bf234f9e78a4cbd5278aef98c76668a2` (`redact command environment option values`)
