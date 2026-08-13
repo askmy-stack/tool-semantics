@@ -39,18 +39,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Capture baseline and candidate
+      # .tool-semantics/baselines/github.json was captured, reviewed, and
+      # committed before this pull request.
+      - name: Capture candidate snapshot
         run: |
           pip install "tool-semantics==0.2.0"
-          tool-semantics capture manifests/baseline.json -o .tool-semantics/baseline.json
           tool-semantics capture manifests/candidate.json -o .tool-semantics/candidate.json
       - uses: askmy-stack/tool-semantics/.github/actions/compare@v0.2.0
         with:
-          baseline: .tool-semantics/baseline.json
+          baseline: .tool-semantics/baselines/github.json
           candidate: .tool-semantics/candidate.json
-          config: .tool-semantics.toml
           policy: strict
           comment-on-pr: "true"
+          upload-artifacts: "true"
 ```
 
 ## Inputs
@@ -62,6 +63,7 @@ jobs:
 | `config` | no | `""` | Optional ignore/policy config path |
 | `policy` | no | `""` | `compatible` / `strict` / `critical-only` / `permissive` |
 | `comment-on-pr` | no | `true` | Upsert a PR comment with the report |
+| `upload-artifacts` | no | `false` | Upload the candidate snapshot and generated reports as a workflow artifact |
 | `fail-on-breaking` | no | `true` | Legacy; `false` maps to `permissive` when `policy` unset |
 | `working-directory` | no | `.` | Directory for install/compare |
 
@@ -72,6 +74,18 @@ jobs:
 | `compatible` | `true` / `false` after ignore rules (breaking/critical free) |
 | `policy-failed` | `true` if the selected release policy failed |
 | `report-path` | Path to the Markdown report artifact |
+
+## Baselines and diagnostic artifacts
+
+Capture, review, and commit the approved baseline snapshot to Git before it is
+used in CI; treat that file as the compatibility contract. A pull-request job
+should capture only its candidate and compare it to the committed baseline, not
+recreate the baseline during the run. To intentionally update the contract,
+capture a new baseline, review its diff, and commit that snapshot change.
+
+When `upload-artifacts: "true"`, the Action uploads the candidate snapshot plus
+the generated Markdown and JSON reports in the `tool-semantics-report` artifact.
+These files help diagnose a CI run; they do not replace the Git-tracked baseline.
 
 ## Permissions
 

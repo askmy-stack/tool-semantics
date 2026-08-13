@@ -13,6 +13,7 @@ from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.mcp_capture import McpCaptureError, capture_mcp_sse, capture_mcp_stdio
 from tool_semantics.policy import policy_from_name
+from tool_semantics.provenance import write_provenance
 from tool_semantics.report import render_markdown, severity_style
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
 
@@ -47,6 +48,15 @@ def _log_verbose(verbose: bool, message: str) -> None:
         err_console.print(f"[dim]{message}[/dim]")
 
 
+def _reject_equivalent_output_paths(snapshot_path: Path, provenance_path: Path | None) -> None:
+    """Prevent a provenance sidecar from replacing the newly captured snapshot."""
+    if provenance_path is not None and snapshot_path.resolve() == provenance_path.resolve():
+        console.print(
+            "[red]Capture failed:[/red] Snapshot and provenance output paths must be different."
+        )
+        raise typer.Exit(code=2)
+
+
 @app.command()
 def capture(
     manifest: Annotated[
@@ -65,6 +75,10 @@ def capture(
             help="Where to write the normalized snapshot JSON.",
         ),
     ] = Path(".tool-semantics/snapshot.json"),
+    provenance_output: Annotated[
+        Path | None,
+        typer.Option("--provenance-output", help="Write capture provenance JSON separately."),
+    ] = None,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -75,6 +89,7 @@ def capture(
     ] = False,
 ) -> None:
     """Normalize a JSON tool manifest into a Tool-Semantics snapshot."""
+    _reject_equivalent_output_paths(output, provenance_output)
     _log_verbose(verbose, f"Reading manifest {manifest.resolve()}")
     try:
         snapshot = capture_manifest(manifest)
@@ -82,6 +97,16 @@ def capture(
     except ManifestError as exc:
         console.print(f"[red]Capture failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
+    if provenance_output:
+        try:
+            write_provenance(
+                output,
+                provenance_output,
+                {"kind": "manifest", "location": str(manifest)},
+            )
+        except OSError as exc:
+            console.print(f"[red]Capture failed:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
     _log_verbose(
         verbose,
         f"Wrote snapshot {output.resolve()} with {len(snapshot.tools)} tools "
@@ -109,6 +134,10 @@ def capture_mcp(
             help="Where to write the normalized snapshot JSON.",
         ),
     ] = Path(".tool-semantics/snapshot.json"),
+    provenance_output: Annotated[
+        Path | None,
+        typer.Option("--provenance-output", help="Write capture provenance JSON separately."),
+    ] = None,
     sse_url: Annotated[
         str | None,
         typer.Option("--sse", help="SSE MCP endpoint URL (not implemented yet)."),
@@ -127,6 +156,7 @@ def capture_mcp(
     ] = False,
 ) -> None:
     """Capture a live MCP server over stdio (or attempt SSE)."""
+    _reject_equivalent_output_paths(output, provenance_output)
     try:
         if sse_url:
             snapshot = capture_mcp_sse(sse_url)
@@ -147,6 +177,16 @@ def capture_mcp(
     except (McpCaptureError, ManifestError) as exc:
         console.print(f"[red]MCP capture failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
+    if provenance_output and command:
+        try:
+            write_provenance(
+                output,
+                provenance_output,
+                {"kind": "mcp-stdio", "command": command},
+            )
+        except OSError as exc:
+            console.print(f"[red]MCP capture failed:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
     _log_verbose(
         verbose,
         (

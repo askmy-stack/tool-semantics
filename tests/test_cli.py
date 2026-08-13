@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -5,6 +6,7 @@ from typer.testing import CliRunner
 from tool_semantics.cli import app
 
 runner = CliRunner()
+FIXTURE = Path(__file__).parent / "fixtures" / "fake_mcp_server.py"
 
 
 def test_capture_verbose_writes_stderr(tmp_path: Path) -> None:
@@ -22,6 +24,109 @@ def test_capture_verbose_writes_stderr(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Reading manifest" in result.stderr
     assert output.is_file()
+
+
+def test_capture_writes_requested_provenance(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot.json"
+    provenance = tmp_path / "snapshot.provenance.json"
+    result = runner.invoke(
+        app,
+        [
+            "capture",
+            "examples/github_server_v1.json",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(provenance),
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(provenance.read_text(encoding="utf-8"))
+    assert payload["source"] == {
+        "kind": "manifest",
+        "location": "examples/github_server_v1.json",
+    }
+
+
+def test_capture_rejects_provenance_path_that_would_overwrite_snapshot(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text("original snapshot\n", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        [
+            "capture",
+            "examples/github_server_v1.json",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(snapshot),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert snapshot.read_text(encoding="utf-8") == "original snapshot\n"
+    assert "must be different" in result.stdout
+
+
+def test_capture_preserves_snapshot_write_os_error_without_provenance(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["capture", "examples/github_server_v1.json", "-o", str(tmp_path)],
+    )
+    assert result.exit_code == 1
+    assert isinstance(result.exception, IsADirectoryError)
+    assert "Capture failed:" not in result.stdout
+
+
+def test_capture_mcp_writes_redacted_requested_provenance(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot.json"
+    provenance = tmp_path / "snapshot.provenance.json"
+    result = runner.invoke(
+        app,
+        [
+            "capture-mcp",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(provenance),
+            "--",
+            "python",
+            str(FIXTURE),
+            "--token",
+            "command-secret",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(provenance.read_text(encoding="utf-8"))
+    assert payload["source"] == {
+        "kind": "mcp-stdio",
+        "command": ["python", str(FIXTURE), "--token", "***REDACTED***"],
+    }
+
+
+def test_capture_mcp_rejects_equivalent_provenance_path_before_snapshot_write(
+    tmp_path: Path,
+) -> None:
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text("original snapshot\n", encoding="utf-8")
+    equivalent_path = tmp_path / "." / "snapshot.json"
+    result = runner.invoke(
+        app,
+        [
+            "capture-mcp",
+            "-o",
+            str(snapshot),
+            "--provenance-output",
+            str(equivalent_path),
+            "--",
+            "python",
+            str(FIXTURE),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert snapshot.read_text(encoding="utf-8") == "original snapshot\n"
+    assert "must be different" in result.stdout
 
 
 def test_compare_verbose_and_config_ignore(tmp_path: Path) -> None:

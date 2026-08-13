@@ -21,6 +21,10 @@ inputs:
     description: If true, post or update a PR comment with the Markdown report.
     required: false
     default: "true"
+  upload-artifacts:
+    description: Upload candidate snapshot and generated reports as a workflow artifact.
+    required: false
+    default: "false"
   fail-on-breaking:
     description: Deprecated alias for policy=compatible when true.
     required: false
@@ -155,3 +159,48 @@ runs:
               body,
             });
           }
+
+    - name: Resolve artifact paths
+      id: artifact-paths
+      if: ${{ always() && inputs.upload-artifacts == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CANDIDATE: ${{ inputs.candidate }}
+      run: |
+        python - <<'PY'
+        import os
+        from pathlib import Path
+
+        candidate = Path(os.environ["CANDIDATE"]).resolve()
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+            print(f"candidate-path={candidate}", file=output)
+        PY
+
+      # All three files are required: an incomplete diagnostic artifact is misleading.
+      # This runs after a compare failure as well when upload was explicitly requested.
+    - name: Validate artifact paths
+      id: validate-artifact-paths
+      if: ${{ always() && inputs.upload-artifacts == 'true' }}
+      shell: bash
+      run: |
+        for path in \
+          "${{ steps.artifact-paths.outputs.candidate-path }}" \
+          "${{ steps.compare.outputs.report-path }}" \
+          "${{ runner.temp }}/tool-semantics/report.json"; do
+          if [ ! -f "$path" ]; then
+            echo "Missing required artifact file: $path" >&2
+            exit 1
+          fi
+        done
+
+    - name: Upload report artifact
+      if: ${{ always() && inputs.upload-artifacts == 'true' && steps.validate-artifact-paths.outcome == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: tool-semantics-report
+        if-no-files-found: error
+        path: |
+          ${{ steps.artifact-paths.outputs.candidate-path }}
+          ${{ steps.compare.outputs.report-path }}
+          ${{ runner.temp }}/tool-semantics/report.json
