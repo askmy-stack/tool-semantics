@@ -194,12 +194,13 @@ git commit -m "add capture provenance output"
 
 ```python
 def test_compare_action_can_upload_candidate_and_reports() -> None:
-    action = yaml.safe_load(Path(".github/actions/compare/action.yml").read_text())
-    assert action["inputs"]["upload-artifacts"]["default"] == "false"
-    upload = next(step for step in action["runs"]["steps"] if step["name"] == "Upload report artifact")
-    assert "inputs.upload-artifacts == 'true'" in upload["if"]
-    assert "${{ inputs.candidate }}" in upload["with"]["path"]
-    assert "${{ steps.compare.outputs.report-path }}" in upload["with"]["path"]
+    action = Path(".github/actions/compare/action.yml").read_text(encoding="utf-8")
+    assert 'upload-artifacts:' in action
+    assert 'default: "false"' in action
+    assert 'name: Upload report artifact' in action
+    assert "inputs.upload-artifacts == 'true'" in action
+    assert "${{ inputs.candidate }}" in action
+    assert "${{ steps.compare.outputs.report-path }}" in action
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
