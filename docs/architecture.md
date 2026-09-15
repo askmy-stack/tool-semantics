@@ -9,7 +9,7 @@ flowchart TB
   subgraph inputs
     M[JSON tool manifest]
     L[Live MCP server — stdio supported]
-    SSE[Live MCP SSE — stubbed]
+    SSE[Live MCP SSE]
   end
   subgraph core
     S[Scanner / mcp_capture]
@@ -30,7 +30,7 @@ flowchart TB
   end
   M --> S
   L --> S
-  SSE -.-> S
+  SSE --> S
   S --> N
   N --> D
   D --> R
@@ -50,10 +50,11 @@ flowchart TB
 | Component | Role |
 | --- | --- |
 | **Scanner** (`scanner.py`) | Import a static interface / manifest and emit a versioned snapshot |
-| **Live MCP capture** (`mcp_capture.py`) | Capture tools over **stdio** MCP (JSON-RPC); SSE is intentionally stubbed |
+| **Live MCP capture** (`mcp_capture.py`) | Capture tools over **stdio** or **SSE** MCP (JSON-RPC); auth headers never enter snapshot metadata |
 | **Models** (`models.py`) | Normalized server metadata and tool contracts (`InterfaceSnapshot`) |
 | **Diff engine** (`diff.py`) | Stable change codes + severity levels |
-| **Probes** (`probes.py`) | Offline behavioral expectations (positive / side-effect / confirmation) |
+| **Probes** (`probes.py`) | Offline + opt-in model-backed probes, metrics, and stability trials |
+| **Model runner** (`runner.py`) | Provider-neutral runner interface + OpenAI-compatible HTTP adapter (no required SDK) |
 | **Release policy** (`policy.py`) | Configurable CI gate thresholds for severity |
 | **Config** (`config.py`) | TOML/YAML project config (ignore rules, policy overrides) |
 | **Migration adapters** (`adapters.py`) | Tool aliases, argument/enum maps, output wrappers |
@@ -70,9 +71,8 @@ replacement for Git-tracked baselines.
 
 ### Still planned
 
-- **Model-backed behavioral runners** — LLM-driven probe execution (M4 matrix)
-- **SSE live MCP transport** — beyond the current stub
 - Broader adapter / matrix automation beyond the shipped declarative adapters
+- Downstream usage-weighted severity (see myelinmesh v0.4 integrations)
 
 ## Related docs
 

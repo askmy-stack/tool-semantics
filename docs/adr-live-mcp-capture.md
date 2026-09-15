@@ -1,7 +1,7 @@
 # ADR: Live MCP capture
 
 ## Status
-Accepted (Milestone 1 initial implementation)
+Accepted (Milestone 1 — stdio + SSE)
 
 ## Context
 Static JSON manifests unlock deterministic CI, but real MCP servers expose tools
@@ -13,12 +13,20 @@ dynamically over stdio or SSE. Contributors need a capture path that:
 
 ## Decision
 - Ship **stdio** capture first (`tool-semantics capture-mcp -- <command>`).
-- Use Content-Length framed JSON-RPC (LSP-style), matching common MCP servers.
+- Ship **SSE** remote capture (`tool-semantics capture-mcp --sse <url>`) using
+  the MCP SSE transport: GET `text/event-stream` for the `endpoint` event, then
+  POST JSON-RPC to the message URL. Responses may arrive on the SSE stream or
+  as direct POST JSON bodies.
+- Auth via repeatable `--header 'Name: value'` (for example
+  `Authorization: Bearer …`). Header **values** and secret-like header names are
+  never written to snapshot metadata — only a redacted endpoint URL and
+  non-secret header names are retained.
+- Use Content-Length framed JSON-RPC (LSP-style) for stdio, matching common MCP servers.
 - Treat prompts/resources as best-effort: missing methods do not fail capture.
 - Redact by default (`--no-redact` to disable).
-- Leave SSE as an explicit not-implemented error until a stable client lands.
 
 ## Consequences
-- Tests use an in-repo fake stdio server (`tests/fixtures/fake_mcp_server.py`).
-- Snapshot `protocol` is `mcp-stdio` for live captures.
+- Tests use in-repo fake servers (`tests/fixtures/fake_mcp_server.py`,
+  `tests/fixtures/fake_mcp_sse_server.py`).
+- Snapshot `protocol` is `mcp-stdio` or `mcp-sse` for live captures.
 - Consumers should still prefer checked-in manifests for hermetic CI when possible.
