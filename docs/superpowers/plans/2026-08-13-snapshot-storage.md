@@ -16,7 +16,8 @@
 - Do not change the `InterfaceSnapshot` schema or include changing provenance fields in snapshot comparisons.
 - Provenance must never serialize authorization headers, environment variables, or unredacted secret-like source values.
 - Git baselines remain normal user-managed JSON files; artifacts are optional diagnostics.
-- Preserve existing stdio and manifest capture behavior when provenance is not requested.
+- Preserve existing stdio, SSE, and manifest capture behavior when provenance is
+  not requested.
 
 ---
 
@@ -167,7 +168,10 @@ provenance_output: Annotated[
 
 After `write_snapshot(snapshot, output)`, call `write_provenance` only when the
 option is supplied. For `capture`, pass `{"kind": "manifest", "location": str(manifest)}`.
-For stdio capture, pass `{"kind": "mcp-stdio", "command": command}`. Route
+For stdio capture, pass `{"kind": "mcp-stdio", "command": command}`. For SSE
+capture, pass `{"kind": "mcp-sse", "endpoint": url}` (endpoint must already be
+redacted / free of auth material). Route
+
 provenance exceptions through the existing capture error handler as exit code 2.
 
 - [ ] **Step 4: Run CLI tests to verify they pass**

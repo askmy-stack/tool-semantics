@@ -17,9 +17,14 @@ The first implementation adds three complementary storage paths:
    document describing where and when the snapshot was captured and its
    SHA-256 content digest.
 
-Object storage and a centralized snapshot registry are explicitly out of scope.
-They require credentials, retention policy, access control, and an API that this
-library does not yet own.
+Object storage and a centralized snapshot registry are explicitly out of scope
+for the core library. They require credentials, retention policy, access
+control, and an API that this package does not own. A design-only follow-up is
+tracked in [#63](https://github.com/askmy-stack/tool-semantics/issues/63).
+
+Related docs: [adr-live-mcp-capture.md](../../adr-live-mcp-capture.md) (stdio +
+SSE capture), [downstream.md](../../downstream.md) (consumer handoff).
+
 
 ## User experience
 
@@ -52,10 +57,18 @@ option. It writes a sibling or user-selected JSON file such as:
 }
 ```
 
-For live capture, `source.kind` is `mcp-stdio` or the future remote transport.
+For live capture, `source.kind` is one of:
+
+| `source.kind` | When |
+| --- | --- |
+| `mcp-stdio` | `tool-semantics capture-mcp -- <command>` |
+| `mcp-sse` | `tool-semantics capture-mcp --sse <url>` (remote SSE; shipped in v0.4.0 / #43) |
+
 The source location contains a command or endpoint only after secret-like values
 are redacted. Environment variables, authorization headers, and raw tokens are
-never written.
+never written (SSE `--header` values are never persisted in snapshot or
+provenance metadata).
+
 
 The sidecar is deliberately separate from `InterfaceSnapshot`. Timestamp and
 provenance values change between captures and must not create compatibility
@@ -93,14 +106,15 @@ stable order and each file ends in one newline.
 
 - Unit-test the provenance document for deterministic digest, source redaction,
   and stable serialization.
-- CLI-test `--provenance-output` for manifest and stdio capture paths.
+- CLI-test `--provenance-output` for manifest, stdio, and SSE capture paths.
 - Add an Action fixture or static validation for the artifact upload inputs and
   paths.
 - Retain all existing snapshot and compare tests unchanged.
 
 ## Rollout
 
-1. Ship provenance sidecars and optional CI artifacts in a minor release.
-2. Document Git baselines as the recommended default.
-3. Revisit object storage or a registry only after users need cross-repository
-   retention and search.
+1. Ship provenance sidecars and optional CI artifacts in a minor release (**done** in v0.3.0).
+2. Document Git baselines as the recommended default (**done**).
+3. Live SSE provenance uses `source.kind: mcp-sse` (**done** in v0.4.0).
+4. Revisit object storage or a registry only after users need cross-repository
+   retention and search (see [#63](https://github.com/askmy-stack/tool-semantics/issues/63)).
