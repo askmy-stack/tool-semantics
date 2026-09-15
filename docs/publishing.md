@@ -23,14 +23,15 @@ No long-lived PyPI API token is stored in the repository.
 5. The `Publish to PyPI` workflow builds sdist/wheel and uploads via OIDC.
 6. Verify `pip install tool-semantics==X.Y.Z` in a clean venv.
 
-## Pending: cut `v0.3.0`
+## Recent releases
 
-~~`main` already has version `0.3.0`…~~ **Done** — Release `v0.3.0` was published
-2026-09-15. Verify:
+- **`v0.4.0`** — SSE capture + model-backed probes / metrics / stability (#43–#47)
+- **`v0.3.0`** — provenance sidecars + Action artifact uploads
+- **`v0.2.0`** — first PyPI release (#31)
 
 ```bash
-pip install tool-semantics==0.3.0
-tool-semantics --version
+gh release create vX.Y.Z --title "vX.Y.Z" --notes-file CHANGELOG.md --target main
+pip install tool-semantics==X.Y.Z
 ```
 
 ## Local dry-run

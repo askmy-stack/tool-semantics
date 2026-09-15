@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Guidance for Claude Code sessions working in this repo. Keep this file short;
-the full roadmap and agent breakdown lives in [docs/PLAN.md](docs/PLAN.md).
+the full post-Milestone-4 course of action lives in [docs/PLAN.md](docs/PLAN.md).
 
 ## What this repo is
 
@@ -16,9 +16,9 @@ across five compatibility layers:
 4. Execution — do calls still succeed with prior argument patterns?
 5. Intent / side effects — did risk or confirmation needs change?
 
-Status: layers 1-2 are fully implemented and CI-gateable (structural diff,
-exit codes 0/1/2). Layers 3-5 exist only as heuristic warnings today — closing
-that gap is the main open work (see Current priorities below).
+Status: layers 1–2 are CI-gateable; layers 3–5 are covered by offline probes
+plus **opt-in** model-backed probes, metrics, and stability scoring (Milestones
+3–4). Live capture supports stdio and SSE.
 
 ## Repo layout
 
@@ -46,22 +46,17 @@ pip install -e ".[dev]"
 
 pytest
 ruff check .
+ruff format --check .
 
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json --markdown-output report.md
 ```
 
-## Current priorities (condensed — see docs/PLAN.md for full sequencing)
+## Current priorities
 
-1. **Ops — Cut `v0.3.0` GitHub Release + PyPI** so Action pins and
-   `pip install tool-semantics==0.3.0` match `main` (see
-   [docs/publishing.md](docs/publishing.md)). First release
-   ([#31](https://github.com/askmy-stack/tool-semantics/issues/31)) already
-   shipped as `v0.2.0`.
-2. **Land remaining issue work** on `main`: remote SSE capture (#43), model
-   runner (#45), model-backed probes (#44), metrics (#46), stability (#47).
-3. **Downstream**: myelinmesh usage-weighted severity after #46 metrics are
-   published; optional dogfood capture against market-pulse-mcp.
-4. **Ongoing**: Dependabot hygiene — no action unless a PR fails.
+1. **Downstream** — myelinmesh usage-weighted severity from probe metrics
+   ([docs/downstream.md](docs/downstream.md), myelinmesh#21).
+2. **Hygiene** — keep CI green (`ruff format`, tests); Dependabot only when PRs fail.
+3. **Releases** — tag from `main` per [docs/publishing.md](docs/publishing.md).
 
-Full phased plan: [docs/PLAN.md](docs/PLAN.md).
+Full plan: [docs/PLAN.md](docs/PLAN.md).

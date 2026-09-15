@@ -1,90 +1,39 @@
-# Course of action: tool-semantics roadmap to Milestone 4
+# Course of action: tool-semantics (post–Milestone 4)
 
-This is the full, sequenced plan for closing out the remaining tool-semantics
-roadmap, based on the current open-issue set (5 open issues as of 2026-09-15)
-and [ROADMAP.md](../ROADMAP.md). For a short summary, see
-[CLAUDE.md](../CLAUDE.md).
+Status as of 2026-09-15: **Milestones 0–6 are shipped** on `main`, including
+remote SSE capture (#43) and the model-backed probe stack (#44–#47) via
+[PR #53](https://github.com/askmy-stack/tool-semantics/pull/53). First PyPI
+release was `v0.2.0` (#31); provenance release `v0.3.0`; feature release
+**`v0.4.0`** packages #43–#47.
 
-Milestones 0, 2, 5, and 6 are shipped. Milestone 1 is mostly done (stdio live;
-SSE/remote remaining). Milestone 3 is mostly done (offline probes, side-effect
-expectations). Milestone 4 (model matrix) is entirely open. First PyPI release
-`v0.2.0` ([#31](https://github.com/askmy-stack/tool-semantics/issues/31)) is
-**done**; `main` carries 0.3.0 metadata that still needs a GitHub Release tag.
+For a short summary, see [CLAUDE.md](../CLAUDE.md). Roadmap checkboxes:
+[ROADMAP.md](../ROADMAP.md).
 
-## Phase 0 — Release hygiene (`v0.3.0`)
+## Completed phases
 
-**Status:** **done** — GitHub Release `v0.3.0` published 2026-09-15 (triggers
-`publish.yml`). First PyPI release `v0.2.0` (#31) remains the prior baseline.
+| Phase | Issues | Outcome |
+| --- | --- | --- |
+| 0 — Release hygiene | #31, `v0.3.0` | PyPI installable; Action pins work |
+| 1 — Remote MCP | #43 | `capture-mcp --sse` + auth-safe headers |
+| 2 — Model runner | #45 | `runner.py` (fake + OpenAI-compatible HTTP) |
+| 3 — Probes / metrics / stability | #44 → #46 → #47 | Opt-in model probes, JSON/MD metrics, trials |
+| 4 docs — Downstream handoff | — | See below + [downstream.md](downstream.md) |
 
-**Follow-up:** verify `pip install tool-semantics==0.3.0` once the publish
-workflow completes.
+## Remaining / next work
 
-## Phase 1 — Remote MCP transport
+1. **Keep `main` green** — run `ruff format` / `ruff check` / `pytest` before merge.
+2. **Downstream — myelinmesh v0.4** ([myelinmesh#21](https://github.com/askmy-stack/myelinmesh/issues/21)):
+   consume Tool-Semantics probe metrics / stability JSON for usage-weighted
+   change risk. Contract documented in [downstream.md](downstream.md).
+3. **Optional dogfood** — SSE capture against market-pulse-mcp (commands in
+   downstream.md).
+4. **Dependabot** — only act when a dependency PR fails.
 
-**Issue:** [#43](https://github.com/askmy-stack/tool-semantics/issues/43)
+No further Milestone 1–4 product issues remain open once #43–#47 are closed.
 
-**Scope:** SSE/remote MCP capture support, extending the existing local
-stdio transport in `src/tool_semantics/mcp_capture.py`. Must produce the
-same deterministic `InterfaceSnapshot` format as local capture, document the
-supported transport(s) and auth boundary, reuse `src/tool_semantics/redact.py`
-for secret-like metadata, and keep existing stdio behavior unchanged.
+## Cross-cutting rules
 
-## Phase 2 — Provider-neutral model runner
-
-**Issue:** [#45](https://github.com/askmy-stack/tool-semantics/issues/45)
-
-**Why this order:** #45 is the foundation #44, #46, and #47 all depend on —
-building any of them first would mean redoing them once the runner interface
-lands.
-
-**Scope:** a runner interface that separates provider transport from probe
-evaluation, at least one provider adapter behind it, model/provider/version
-and run-config metadata recorded in results, configurable timeouts/retries/
-cost limits, and — critically — no required provider SDK dependency for
-users who only want the deterministic offline checks. Extend, don't replace,
-`src/tool_semantics/probes.py` (`Probe`, `ProbeKind`, `evaluate_probes`).
-
-## Phase 3 — Model-backed probes, metrics, and stability
-
-**Issues:** [#44](https://github.com/askmy-stack/tool-semantics/issues/44),
-[#46](https://github.com/askmy-stack/tool-semantics/issues/46),
-[#47](https://github.com/askmy-stack/tool-semantics/issues/47)
-
-Execute sequentially (#44 → #46 → #47):
-
-- **#44** — human-reviewed probe format, opt-in model-backed execution
-  layered onto existing offline probes, results recording selected
-  tool/arguments/outcome/errors, offline behavior stays backward compatible.
-- **#46** — tool-selection accuracy and argument-validity reporting, in both
-  JSON and Markdown via the existing `src/tool_semantics/report.py`
-  rendering rather than a new output path.
-- **#47** — configurable repeated trials, per-trial + aggregate stability
-  scoring, reports distinguishing unstable probes from deterministic
-  failures.
-
-## Phase 4 — Downstream
-
-- **myelinmesh** v0.4: usage-weighted Tool-Semantics change risk (tracked on
-  myelinmesh #21 / ROADMAP). Depends on #46 metrics shape.
-  - Fixture shape to consume: `ProbeMetrics` / stability JSON from
-    `tool_semantics.report.render_probe_metrics_json` and
-    `StabilityReport.model_dump()`.
-  - Open a linking issue on tool-semantics only if myelinmesh needs an extra
-    export field beyond these metrics.
-- Optional dogfood: remote capture against **market-pulse-mcp**:
-
-  ```bash
-  tool-semantics capture-mcp --sse "$MARKET_PULSE_SSE_URL" \
-    -H "Authorization: Bearer $TOKEN" \
-    -o .tool-semantics/market-pulse.json
-  ```
-
-## Cross-cutting rules for every phase
-
-- Run `pytest`, `ruff check .`, and the existing pre-commit hooks
-  (`.pre-commit-config.yaml`) before considering a phase done — don't add
-  new lint config.
-- Every phase lands via a PR against `main`, never a direct push.
-- Keep new code inside existing module boundaries listed in CLAUDE.md;
-  reuse `probes.py`, `report.py`, and `redact.py` rather than duplicating
-  their responsibilities in new files.
+- Land changes via PR to `main`; keep code in existing module boundaries.
+- Reuse `probes.py`, `report.py`, `redact.py`, `runner.py` rather than
+  duplicating responsibilities.
+- `pytest`, `ruff check .`, and `ruff format --check .` must pass.

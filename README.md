@@ -215,7 +215,8 @@ docs/assets/          # README visuals
 
 See [ROADMAP.md](ROADMAP.md) for milestones. Live MCP supports stdio and SSE
 capture; model-backed probes / metrics / stability are available via the library
-API (`docs/probes.md`).
+API (`docs/probes.md`). Downstream consumers (myelinmesh, dogfood capture):
+[`docs/downstream.md`](docs/downstream.md).
 
 ## Contributing
 

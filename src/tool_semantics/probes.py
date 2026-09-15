@@ -83,9 +83,7 @@ class ModelProbeReport(BaseModel):
     @property
     def passed(self) -> bool:
         return all(
-            result.passed
-            for result in self.results
-            if result.outcome != ModelProbeOutcome.SKIPPED
+            result.passed for result in self.results if result.outcome != ModelProbeOutcome.SKIPPED
         )
 
 
