@@ -30,4 +30,22 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 
 - Prefer adding a **new code** over overloading an existing one.
 - Update this table in the same PR that introduces a code.
-- Behavioral / model-based codes will land under a `behavior.*` namespace in later milestones.
+
+## Behavioral / model-backed signals (`behavior.*`)
+
+Structural `compare` does **not** yet emit `behavior.*` change codes.
+Model-backed probe work (#44–#47) ships separately as:
+
+- Library APIs: `evaluate_probes_with_model`, `compute_probe_metrics`,
+  `run_probe_trials` (see [probes.md](probes.md))
+- Report helpers: `render_probe_metrics_*` / `render_stability_*` in `report.py`
+
+Those results are **not** folded into `CompatibilityReport.changes` today, so
+they do not affect compare exit codes by themselves.
+
+The reserved `behavior.*` namespace (for example
+`behavior.tool_selection_failed`, `behavior.arguments_invalid`,
+`behavior.unstable_probe`) is **deferred**. Tracking issue:
+[#61](https://github.com/askmy-stack/tool-semantics/issues/61). Until that
+lands, do not invent ad-hoc behavioral codes in the diff engine; extend probe
+metrics instead or implement #61 with an update to this catalog in the same PR.

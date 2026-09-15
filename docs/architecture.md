@@ -73,6 +73,9 @@ replacement for Git-tracked baselines.
 
 - Broader adapter / matrix automation beyond the shipped declarative adapters
 - Downstream usage-weighted severity (see myelinmesh v0.4 integrations)
+- Folding model-backed probe failures into structural reports as `behavior.*`
+  change codes ([#61](https://github.com/askmy-stack/tool-semantics/issues/61);
+  today metrics live only under [probes.md](probes.md) / [change-codes.md](change-codes.md))
 
 ## Related docs
 
