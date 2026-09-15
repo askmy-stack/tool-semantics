@@ -13,16 +13,11 @@ expectations). Milestone 4 (model matrix) is entirely open. First PyPI release
 
 ## Phase 0 — Release hygiene (`v0.3.0`)
 
-**Status:** code + CHANGELOG on `main`; GitHub Release / PyPI `0.3.0` still
-missing. Docs already pin `@v0.3.0`.
+**Status:** **done** — GitHub Release `v0.3.0` published 2026-09-15 (triggers
+`publish.yml`). First PyPI release `v0.2.0` (#31) remains the prior baseline.
 
-**Scope:**
-- Tag + GitHub Release `v0.3.0` (triggers `publish.yml`)
-- Verify `pip install tool-semantics==0.3.0` in a clean venv
-- Keep Action pin examples in [github-action.md](github-action.md) aligned
-
-**Required agent:** ops / maintainer with Release write access (see
-[publishing.md](publishing.md)).
+**Follow-up:** verify `pip install tool-semantics==0.3.0` once the publish
+workflow completes.
 
 ## Phase 1 — Remote MCP transport
 

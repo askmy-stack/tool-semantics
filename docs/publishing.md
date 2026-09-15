@@ -25,13 +25,12 @@ No long-lived PyPI API token is stored in the repository.
 
 ## Pending: cut `v0.3.0`
 
-`main` already has version `0.3.0`, CHANGELOG section, and Action pin examples.
-Only the GitHub Release is outstanding (PyPI still serves `0.2.0` only):
+~~`main` already has version `0.3.0`…~~ **Done** — Release `v0.3.0` was published
+2026-09-15. Verify:
 
 ```bash
-gh release create v0.3.0 --title "v0.3.0" --notes-file CHANGELOG.md \
-  --target main
-# then: pip install tool-semantics==0.3.0
+pip install tool-semantics==0.3.0
+tool-semantics --version
 ```
 
 ## Local dry-run
