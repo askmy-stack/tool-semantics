@@ -27,17 +27,13 @@ def _snapshot() -> InterfaceSnapshot:
             ToolContract(
                 name="search_issues",
                 description="Search GitHub issues by query",
-                parameters=[
-                    ToolParameter(name="query", schema={"type": "string"}, required=True)
-                ],
+                parameters=[ToolParameter(name="query", schema={"type": "string"}, required=True)],
                 risk=RiskLevel.READ_ONLY,
             ),
             ToolContract(
                 name="create_issue",
                 description="Create a GitHub issue",
-                parameters=[
-                    ToolParameter(name="title", schema={"type": "string"}, required=True)
-                ],
+                parameters=[ToolParameter(name="title", schema={"type": "string"}, required=True)],
                 risk=RiskLevel.EXTERNAL_WRITE,
             ),
         ],

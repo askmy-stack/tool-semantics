@@ -55,9 +55,7 @@ def _parse_headers(raw_headers: list[str] | None) -> dict[str, str]:
         return headers
     for item in raw_headers:
         if ":" not in item:
-            console.print(
-                f"[red]Invalid --header (expected 'Name: value'):[/red] {item!r}"
-            )
+            console.print(f"[red]Invalid --header (expected 'Name: value'):[/red] {item!r}")
             raise typer.Exit(code=2)
         name, value = item.split(":", 1)
         name = name.strip()

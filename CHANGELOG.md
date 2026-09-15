@@ -5,14 +5,20 @@ All notable changes to Tool-Semantics will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- (none yet)
+
+## [0.4.0] — 2026-09-15
+
+### Added
 - Remote MCP SSE capture via `capture-mcp --sse` with `--header` auth that never
   lands in snapshot metadata (#43)
 - Provider-neutral model runner (`runner.py`) with `FakeModelRunner` and
   stdlib `OpenAICompatibleRunner` — no required provider SDK (#45)
 - Opt-in human-reviewed model-backed probes (`evaluate_probes_with_model`) (#44)
 - Tool-selection / argument-validity / risk metrics in JSON and Markdown (#46)
-- Configurable repeated trials and stability scoring (#47)
+- Configurable repeated trials and stability scoring (`run_probe_trials`) (#47)
 - Probe documentation in `docs/probes.md`
+- Downstream integration handoff in `docs/downstream.md`
 
 ## [0.3.0] — 2026-08-12
 
