@@ -23,10 +23,11 @@ that gap is the main open work (see Current priorities below).
 ## Repo layout
 
 - `src/tool_semantics/scanner.py` — captures manifests into `InterfaceSnapshot`
-- `src/tool_semantics/mcp_capture.py` — live MCP capture over stdio
+- `src/tool_semantics/mcp_capture.py` — live MCP capture over stdio and SSE
 - `src/tool_semantics/diff.py` — structural comparison engine
 - `src/tool_semantics/models.py` — snapshot/report data models
-- `src/tool_semantics/probes.py` — offline behavioral probe harness (`Probe`, `ProbeKind`, `evaluate_probes`)
+- `src/tool_semantics/probes.py` — offline + opt-in model-backed probe harness
+- `src/tool_semantics/runner.py` — provider-neutral model runner interface
 - `src/tool_semantics/adapters.py` — migration adapters (tool alias/arg translation)
 - `src/tool_semantics/policy.py` — release-policy enforcement knobs
 - `src/tool_semantics/redact.py` — secret/unstable-field redaction
@@ -52,9 +53,15 @@ tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json --markdow
 
 ## Current priorities (condensed — see docs/PLAN.md for full sequencing)
 
-1. **P0 — Ship a real release** ([#31](https://github.com/askmy-stack/tool-semantics/issues/31)): no GitHub Release or working `pip install tool-semantics` exists yet, despite the publish workflow being built. This blocks everything downstream.
-2. **P1 — Provider-neutral model runner** ([#45](https://github.com/askmy-stack/tool-semantics/issues/45)): unblocks the model-backed probe work (#44, #46, #47) that closes the layers-3-5 gap.
-3. **Ongoing**: dependency/CI hygiene is already automated via Dependabot — no action needed unless a PR fails.
+1. **Ops — Cut `v0.3.0` GitHub Release + PyPI** so Action pins and
+   `pip install tool-semantics==0.3.0` match `main` (see
+   [docs/publishing.md](docs/publishing.md)). First release
+   ([#31](https://github.com/askmy-stack/tool-semantics/issues/31)) already
+   shipped as `v0.2.0`.
+2. **Land remaining issue work** on `main`: remote SSE capture (#43), model
+   runner (#45), model-backed probes (#44), metrics (#46), stability (#47).
+3. **Downstream**: myelinmesh usage-weighted severity after #46 metrics are
+   published; optional dogfood capture against market-pulse-mcp.
+4. **Ongoing**: Dependabot hygiene — no action unless a PR fails.
 
-Full phased plan, dependencies between issues, and required agent roles per
-phase: [docs/PLAN.md](docs/PLAN.md).
+Full phased plan: [docs/PLAN.md](docs/PLAN.md).

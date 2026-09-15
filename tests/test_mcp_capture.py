@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from fixtures.fake_mcp_sse_server import FakeMcpSseServer
 
 from tool_semantics.mcp_capture import McpCaptureError, capture_mcp_sse, capture_mcp_stdio
 from tool_semantics.redact import redact_mapping
@@ -30,6 +31,41 @@ def test_redact_mapping_masks_secret_keys() -> None:
     assert redacted["safe"] == "ok"
 
 
-def test_capture_mcp_sse_not_implemented() -> None:
-    with pytest.raises(McpCaptureError, match="SSE capture is not implemented"):
-        capture_mcp_sse("https://example.com/sse")
+def test_capture_mcp_sse_success() -> None:
+    server = FakeMcpSseServer()
+    server.start()
+    try:
+        snapshot = capture_mcp_sse(server.sse_url, timeout=5.0)
+    finally:
+        server.stop()
+    assert snapshot.protocol == "mcp-sse"
+    assert snapshot.server_name == "fake-sse-mcp"
+    assert snapshot.server_version == "9.9.9"
+    assert [tool.name for tool in snapshot.tools] == ["echo"]
+    assert snapshot.metadata["transport"] == "sse"
+    assert "Authorization" not in str(snapshot.metadata)
+    assert snapshot.metadata["endpoint"].startswith("http://127.0.0.1:")
+
+
+def test_capture_mcp_sse_invalid_endpoint() -> None:
+    with pytest.raises(McpCaptureError, match="Invalid SSE endpoint URL"):
+        capture_mcp_sse("not-a-url")
+
+
+def test_capture_mcp_sse_auth_error() -> None:
+    server = FakeMcpSseServer(require_auth=True)
+    server.start()
+    try:
+        with pytest.raises(McpCaptureError, match="authentication/HTTP error 401"):
+            capture_mcp_sse(server.sse_url, timeout=5.0)
+        snapshot = capture_mcp_sse(
+            server.sse_url,
+            headers={"Authorization": "Bearer secret-token"},
+            timeout=5.0,
+        )
+    finally:
+        server.stop()
+    assert snapshot.server_name == "fake-sse-mcp"
+    # Auth header values must never appear in metadata.
+    assert "secret-token" not in str(snapshot.model_dump())
+    assert snapshot.metadata.get("request_header_names") == []

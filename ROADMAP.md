@@ -14,7 +14,7 @@
 - [x] Discover tools, prompts, and resources
 - [x] Normalize metadata into a stable snapshot
 - [x] Redact secrets and unstable fields
-- [ ] SSE / remote transport (stubbed with clear error)
+- [x] SSE / remote transport (`capture-mcp --sse`) — [#43](https://github.com/askmy-stack/tool-semantics/issues/43)
 
 ## Milestone 2 — Compatibility engine
 - [x] Required-parameter, type, and enum changes
@@ -31,12 +31,12 @@
 ## Milestone 3 — Behavioral contracts
 - [x] Offline probe harness (positive / negative / ambiguous) — [#12](https://github.com/askmy-stack/tool-semantics/issues/12)
 - [x] Side-effect and confirmation expectations (`max_risk`, `requires_confirmation`)
-- [ ] Human-reviewed probe generation / model-backed runners
+- [x] Human-reviewed probe generation / model-backed runners — [#44](https://github.com/askmy-stack/tool-semantics/issues/44)
 
 ## Milestone 4 — Model matrix
-- [ ] Provider-neutral runner
-- [ ] Tool-selection and argument-validity metrics
-- [ ] Repeated trials and stability scoring
+- [x] Provider-neutral runner — [#45](https://github.com/askmy-stack/tool-semantics/issues/45)
+- [x] Tool-selection and argument-validity metrics — [#46](https://github.com/askmy-stack/tool-semantics/issues/46)
+- [x] Repeated trials and stability scoring — [#47](https://github.com/askmy-stack/tool-semantics/issues/47)
 - [x] Large-manifest benchmarks (library helper + test gate) — [#14](https://github.com/askmy-stack/tool-semantics/issues/14)
 
 ## Milestone 5 — Pull-request reporting

@@ -213,7 +213,9 @@ docs/assets/          # README visuals
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for milestones: remote MCP capture, richer compatibility rules, behavioral contracts, model matrices, PR reporting, and migration adapters.
+See [ROADMAP.md](ROADMAP.md) for milestones. Live MCP supports stdio and SSE
+capture; model-backed probes / metrics / stability are available via the library
+API (`docs/probes.md`).
 
 ## Contributing
 

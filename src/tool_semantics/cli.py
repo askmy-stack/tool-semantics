@@ -48,6 +48,26 @@ def _log_verbose(verbose: bool, message: str) -> None:
         err_console.print(f"[dim]{message}[/dim]")
 
 
+def _parse_headers(raw_headers: list[str] | None) -> dict[str, str]:
+    """Parse CLI `--header 'Name: value'` options into a mapping."""
+    headers: dict[str, str] = {}
+    if not raw_headers:
+        return headers
+    for item in raw_headers:
+        if ":" not in item:
+            console.print(
+                f"[red]Invalid --header (expected 'Name: value'):[/red] {item!r}"
+            )
+            raise typer.Exit(code=2)
+        name, value = item.split(":", 1)
+        name = name.strip()
+        if not name:
+            console.print(f"[red]Invalid --header name in:[/red] {item!r}")
+            raise typer.Exit(code=2)
+        headers[name] = value.lstrip()
+    return headers
+
+
 def _reject_equivalent_output_paths(snapshot_path: Path, provenance_path: Path | None) -> None:
     """Prevent a provenance sidecar from replacing the newly captured snapshot."""
     if provenance_path is not None and snapshot_path.resolve() == provenance_path.resolve():
@@ -140,7 +160,21 @@ def capture_mcp(
     ] = None,
     sse_url: Annotated[
         str | None,
-        typer.Option("--sse", help="SSE MCP endpoint URL (not implemented yet)."),
+        typer.Option(
+            "--sse",
+            help="Remote MCP SSE endpoint URL (JSON-RPC over SSE + message POST).",
+        ),
+    ] = None,
+    header: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--header",
+            "-H",
+            help=(
+                "HTTP header for SSE capture as 'Name: value' (repeatable). "
+                "Auth header values are never written to snapshot metadata."
+            ),
+        ),
     ] = None,
     server_name: Annotated[
         str | None,
@@ -155,11 +189,18 @@ def capture_mcp(
         typer.Option("--verbose", "-v", help="Log capture steps to stderr."),
     ] = False,
 ) -> None:
-    """Capture a live MCP server over stdio (or attempt SSE)."""
+    """Capture a live MCP server over stdio or remote SSE."""
     _reject_equivalent_output_paths(output, provenance_output)
     try:
         if sse_url:
-            snapshot = capture_mcp_sse(sse_url)
+            headers = _parse_headers(header)
+            _log_verbose(verbose, f"Connecting to MCP SSE endpoint: {sse_url}")
+            snapshot = capture_mcp_sse(
+                sse_url,
+                headers=headers,
+                server_name=server_name,
+                redact=not no_redact,
+            )
         else:
             if not command:
                 console.print(
@@ -177,13 +218,20 @@ def capture_mcp(
     except (McpCaptureError, ManifestError) as exc:
         console.print(f"[red]MCP capture failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
-    if provenance_output and command:
+    if provenance_output:
         try:
-            write_provenance(
-                output,
-                provenance_output,
-                {"kind": "mcp-stdio", "command": command},
-            )
+            if sse_url:
+                write_provenance(
+                    output,
+                    provenance_output,
+                    {"kind": "mcp-sse", "endpoint": sse_url},
+                )
+            elif command:
+                write_provenance(
+                    output,
+                    provenance_output,
+                    {"kind": "mcp-stdio", "command": command},
+                )
         except OSError as exc:
             console.print(f"[red]MCP capture failed:[/red] {exc}")
             raise typer.Exit(code=2) from exc

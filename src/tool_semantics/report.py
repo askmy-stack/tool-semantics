@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from tool_semantics.diff import CompatibilityReport, Severity
+from tool_semantics.probes import ModelProbeReport, ProbeMetrics, StabilityReport
 
 
 def render_markdown(report: CompatibilityReport) -> str:
@@ -40,6 +44,119 @@ def render_markdown(report: CompatibilityReport) -> str:
         )
     lines.append("")
     return "\n".join(lines)
+
+
+def _fmt_rate(value: float | None) -> str:
+    if value is None:
+        return "n/a (missing data)"
+    return f"{value:.1%}"
+
+
+def render_probe_metrics_markdown(metrics: ProbeMetrics, *, title: str = "Probe metrics") -> str:
+    """Markdown for tool-selection / argument-validity metrics (#46)."""
+    lines = [
+        f"# {title}",
+        "",
+        f"- Probes: {metrics.probe_count}",
+        f"- Evaluated: {metrics.evaluated_count}",
+        f"- Missing data: {metrics.missing_data_count}",
+        f"- Failed evaluations: {metrics.failed_evaluation_count}",
+        f"- Tool-selection accuracy: {_fmt_rate(metrics.tool_selection_accuracy)}",
+        f"- Argument-validity rate: {_fmt_rate(metrics.argument_validity_rate)}",
+        f"- Risk compliance: {_fmt_rate(metrics.risk_compliance_rate)}",
+        f"- Confirmation compliance: {_fmt_rate(metrics.confirmation_compliance_rate)}",
+        "",
+    ]
+    if metrics.per_probe:
+        lines.extend(
+            [
+                "| Probe | Evaluated | Selection accuracy | Arg validity | Passed |",
+                "| --- | ---: | ---: | ---: | --- |",
+            ]
+        )
+        for probe_id, row in sorted(metrics.per_probe.items()):
+            lines.append(
+                f"| `{probe_id}` | {row.get('evaluated', 0)} | "
+                f"{_fmt_rate(row.get('tool_selection_accuracy'))} | "
+                f"{_fmt_rate(row.get('argument_validity_rate'))} | "
+                f"{'yes' if row.get('passed') else 'no'} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def render_probe_metrics_json(metrics: ProbeMetrics) -> dict[str, Any]:
+    return metrics.model_dump(mode="json")
+
+
+def render_model_probe_report_markdown(report: ModelProbeReport) -> str:
+    metrics_section = ""
+    from tool_semantics.probes import compute_probe_metrics
+
+    metrics = compute_probe_metrics(report.results)
+    metrics_section = render_probe_metrics_markdown(metrics)
+    lines = [
+        metrics_section.rstrip(),
+        "",
+        "## Per-probe results",
+        "",
+        "| Probe | Passed | Outcome | Selected tool | Message |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for result in report.results:
+        message = result.message.replace("|", "\\|")
+        lines.append(
+            f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | "
+            f"`{result.outcome.value}` | `{result.selected_tool or ''}` | {message} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_stability_markdown(report: StabilityReport) -> str:
+    """Markdown distinguishing unstable probes from deterministic failures (#47)."""
+    lines = [
+        "# Probe stability report",
+        "",
+        f"- Trials: {report.trial_count}",
+        f"- Seed: {report.seed if report.seed is not None else 'n/a'}",
+        "",
+        render_probe_metrics_markdown(report.metrics, title="Aggregate metrics").rstrip(),
+        "",
+        "## Stability by probe",
+        "",
+        "| Probe | Stability | Unstable | Deterministic failure | Aggregate passed | Message |",
+        "| --- | ---: | --- | --- | --- | --- |",
+    ]
+    for summary in report.summaries:
+        safe_message = summary.message.replace("|", "\\|")
+        lines.append(
+            f"| `{summary.probe_id}` | {summary.stability_score:.2f} | "
+            f"{'yes' if summary.unstable else 'no'} | "
+            f"{'yes' if summary.deterministic_failure else 'no'} | "
+            f"{'yes' if summary.aggregate_passed else 'no'} | "
+            f"{safe_message} |"
+        )
+    lines.append("")
+    unstable = [item for item in report.summaries if item.unstable]
+    deterministic = [item for item in report.summaries if item.deterministic_failure]
+    if unstable:
+        lines.append("### Unstable probes")
+        lines.append("")
+        for item in unstable:
+            lines.append(f"- `{item.probe_id}` (score={item.stability_score:.2f})")
+        lines.append("")
+    if deterministic:
+        lines.append("### Deterministic failures")
+        lines.append("")
+        for item in deterministic:
+            lines.append(f"- `{item.probe_id}`: {item.message}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def render_stability_json(report: StabilityReport) -> str:
+    return json.dumps(report.model_dump(mode="json"), indent=2) + "\n"
 
 
 def severity_style(severity: Severity) -> str:
