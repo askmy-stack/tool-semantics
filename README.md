@@ -222,7 +222,11 @@ from tool_semantics.runner import (
 from tool_semantics.scanner import capture_manifest
 
 snapshot = capture_manifest(Path("examples/github_server_v1.json"))
-probes = [p for p in load_probes(Path("examples/probes/github_v1_offline.json")) if p.id == "search-open-issues"]
+probes = [
+    p
+    for p in load_probes(Path("examples/probes/github_v1_offline.json"))
+    if p.id == "search-open-issues"
+]
 runner = FakeModelRunner(
     [
         ModelCompletion(
