@@ -46,6 +46,7 @@ Positioning (use consistently):
 | Trace replay | Missing | #83, #84 | P1 |
 | Safety scope/side-effects | Single `RiskLevel` | #87 | P1 |
 | Prompt/resource codes | Thin compare | #90 | P1 |
+| Project layout | `init` + `.tool-semantics/` | #85 | P2 |
 
 ## Prioritized backlog
 
