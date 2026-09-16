@@ -188,26 +188,63 @@ examples.
 
 ### Offline probes
 
+```bash
+tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
+tool-semantics probe .tool-semantics/v1.json \
+  --probes examples/probes/github_v1_offline.json
+```
+
 ```python
 from pathlib import Path
 from tool_semantics.scanner import capture_manifest
-from tool_semantics.probes import Probe, ProbeKind, evaluate_probes
+from tool_semantics.probes import Probe, ProbeKind, evaluate_probes, load_probes
 
 snapshot = capture_manifest(Path("examples/github_server_v1.json"))
-report = evaluate_probes(
-    snapshot,
-    [
-        Probe(
-            id="search",
-            intent="find issues",
-            expected_tool="search_issues",
-            required_params=["query"],
-            kind=ProbeKind.POSITIVE,
-        )
-    ],
-)
-assert report.passed
+# Or load the shipped suite: positive / negative / ambiguous
+probes = load_probes(Path("examples/probes/github_v1_offline.json"))
+assert evaluate_probes(snapshot, probes).passed
 ```
+
+### Model-backed probes (opt-in)
+
+Live providers need secrets via env (`TOOL_SEMANTICS_API_KEY` or `OPENAI_API_KEY`).
+Never commit API keys. For local demos without a provider, use `FakeModelRunner`:
+
+```python
+from pathlib import Path
+from tool_semantics.probes import evaluate_probes_with_model, load_probes
+from tool_semantics.runner import (
+    FakeModelRunner,
+    ModelCompletion,
+    RunnerMetadata,
+    ToolCallRequest,
+)
+from tool_semantics.scanner import capture_manifest
+
+snapshot = capture_manifest(Path("examples/github_server_v1.json"))
+probes = [p for p in load_probes(Path("examples/probes/github_v1_offline.json")) if p.id == "search-open-issues"]
+runner = FakeModelRunner(
+    [
+        ModelCompletion(
+            tool_calls=[ToolCallRequest(name="search_issues", arguments={"query": "bugs"})],
+            metadata=RunnerMetadata(provider="fake", model="demo"),
+        )
+    ]
+)
+assert evaluate_probes_with_model(snapshot, probes, runner).passed
+```
+
+CLI with a real provider (after human approval on each probe):
+
+```bash
+export TOOL_SEMANTICS_API_KEY=…   # or OPENAI_API_KEY
+tool-semantics probe .tool-semantics/v1.json \
+  --probes examples/probes/github_v1_offline.json \
+  --model
+```
+
+Details: [docs/probes.md](docs/probes.md) · fixtures: [examples/probes/README.md](examples/probes/README.md) ·
+downstream metrics: [docs/downstream.md](docs/downstream.md).
 
 ## Project layout
 

@@ -17,8 +17,10 @@ MANIFEST = ROOT / "examples" / "github_server_v1.json"
 
 def test_load_probes_json_and_yaml() -> None:
     json_probes = load_probes(PROBES_OK)
-    assert len(json_probes) == 2
+    assert len(json_probes) >= 3
     assert json_probes[0].id == "search-open-issues"
+    kinds = {probe.kind.value for probe in json_probes}
+    assert "positive" in kinds and "negative" in kinds and "ambiguous" in kinds
     yaml_probes = load_probes(PROBES_UNAPPROVED)
     assert len(yaml_probes) == 2
     assert yaml_probes[0].approved is False
