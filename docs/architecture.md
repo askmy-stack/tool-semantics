@@ -8,8 +8,9 @@ Tool-Semantics separates **transport**, **normalization**, and **compatibility a
 flowchart TB
   subgraph inputs
     M[JSON tool manifest]
-    L[Live MCP server — stdio supported]
-    SSE[Live MCP SSE]
+    L[Live MCP server — stdio]
+    HTTP[Live MCP Streamable HTTP]
+    SSE[Live MCP legacy SSE]
   end
   subgraph core
     S[Scanner / mcp_capture]
@@ -30,6 +31,7 @@ flowchart TB
   end
   M --> S
   L --> S
+  HTTP --> S
   SSE --> S
   S --> N
   N --> D
@@ -50,7 +52,7 @@ flowchart TB
 | Component | Role |
 | --- | --- |
 | **Scanner** (`scanner.py`) | Import a static interface / manifest and emit a versioned snapshot |
-| **Live MCP capture** (`mcp_capture.py`) | Capture tools over **stdio** or **SSE** MCP (JSON-RPC); auth headers never enter snapshot metadata |
+| **Live MCP capture** (`mcp_capture.py`) | Capture tools over **stdio**, **Streamable HTTP**, or **legacy SSE**; negotiate protocol version; auth headers never enter snapshot metadata |
 | **Models** (`models.py`) | Normalized server metadata and tool contracts (`InterfaceSnapshot`) |
 | **Diff engine** (`diff.py`) | Stable change codes + severity levels |
 | **Probes** (`probes.py`) | Offline + opt-in model-backed probes, metrics, and stability trials |
@@ -81,9 +83,11 @@ replacement for Git-tracked baselines.
 
 - [change-codes.md](change-codes.md) — stable `Change.code` catalog
 - [adapters.md](adapters.md) — migration adapter model and examples
-- [adr-live-mcp-capture.md](adr-live-mcp-capture.md) — stdio-first live capture ADR
+- [adr-live-mcp-capture.md](adr-live-mcp-capture.md) — live MCP capture ADR
+- [mcp-versions.md](mcp-versions.md) — supported protocol generations / transports
 - [config.md](config.md) — project configuration
 - [github-action.md](github-action.md) — composite Action usage
+- [AGENT_EXECUTION.md](AGENT_EXECUTION.md) — agent execution specification
 
 ## Severity model
 

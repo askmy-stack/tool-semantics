@@ -1,13 +1,16 @@
 # CLAUDE.md
 
 Guidance for Claude Code sessions working in this repo. Keep this file short;
-the full post-Milestone-4 course of action lives in [docs/PLAN.md](docs/PLAN.md).
+the full roadmap and agent breakdown lives in [docs/PLAN.md](docs/PLAN.md) and
+[docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md).
 
 ## What this repo is
 
-**tool-semantics** is a Python CLI/library that catches breaking changes in
-AI-agent tool interfaces (MCP servers, tool APIs) before they ship. It
-snapshots a tool interface, diffs baseline vs. candidate, and reports risk
+**Tool-Semantics — Behavioral regression testing for MCP and AI-agent interfaces.**
+
+Know when an MCP change breaks the agent, not just the schema.
+
+It snapshots a tool interface, diffs baseline vs. candidate, and reports risk
 across five compatibility layers:
 
 1. Protocol — can the client still speak to the server?
@@ -17,13 +20,13 @@ across five compatibility layers:
 5. Intent / side effects — did risk or confirmation needs change?
 
 Status: layers 1–2 are CI-gateable; layers 3–5 are covered by offline probes
-plus **opt-in** model-backed probes, metrics, and stability scoring (Milestones
-3–4). Live capture supports stdio and SSE.
+plus **opt-in** model-backed probes (library). Live capture supports stdio,
+Streamable HTTP, and legacy SSE.
 
 ## Repo layout
 
 - `src/tool_semantics/scanner.py` — captures manifests into `InterfaceSnapshot`
-- `src/tool_semantics/mcp_capture.py` — live MCP capture over stdio and SSE
+- `src/tool_semantics/mcp_capture.py` — live MCP capture (stdio / HTTP / SSE)
 - `src/tool_semantics/diff.py` — structural comparison engine
 - `src/tool_semantics/models.py` — snapshot/report data models
 - `src/tool_semantics/probes.py` — offline + opt-in model-backed probe harness
@@ -50,13 +53,13 @@ ruff format --check .
 
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json --markdown-output report.md
+tool-semantics capture-mcp -o snap.json https://example.com/mcp
 ```
 
 ## Current priorities
 
-1. **Downstream** — myelinmesh usage-weighted severity from probe metrics
-   ([docs/downstream.md](docs/downstream.md), myelinmesh#21).
-2. **Hygiene** — keep CI green (`ruff format`, tests); Dependabot only when PRs fail.
-3. **Releases** — tag from `main` per [docs/publishing.md](docs/publishing.md).
+1. **P0 remaining** — protocol/capability diffs (#75), then unified `eval` (#57/#58/#76).
+2. **Downstream** — myelinmesh usage-weighted severity ([docs/downstream.md](docs/downstream.md)).
+3. **Hygiene** — keep CI green; Dependabot only when PRs fail.
 
-Full plan: [docs/PLAN.md](docs/PLAN.md).
+Full plan: [docs/PLAN.md](docs/PLAN.md). Execution rules: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md).

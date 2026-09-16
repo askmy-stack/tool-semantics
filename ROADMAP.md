@@ -50,3 +50,39 @@
 - [x] Argument and enum translation (`MigrationAdapter`)
 - [x] Output wrappers
 - [x] In-process MCP compatibility proxy (`CompatibilityProxy`)
+
+## Milestone 7 — Modern MCP capture (DETECT)
+- [x] Streamable HTTP remote capture — [#59](https://github.com/askmy-stack/tool-semantics/issues/59)
+- [x] Multi-generation protocol negotiation / metadata — [#73](https://github.com/askmy-stack/tool-semantics/issues/73)
+- [x] Bare-URL remote auto-detect (HTTP → SSE) — [#74](https://github.com/askmy-stack/tool-semantics/issues/74)
+- [ ] Protocol / capability structural diffs — [#75](https://github.com/askmy-stack/tool-semantics/issues/75)
+
+## Milestone 8 — Unified evaluation UX (TEST → PROTECT)
+- [ ] Probe CLI surface — [#57](https://github.com/askmy-stack/tool-semantics/issues/57)
+- [ ] Probe gates in CI Action — [#58](https://github.com/askmy-stack/tool-semantics/issues/58)
+- [ ] Unified `eval` command — [#76](https://github.com/askmy-stack/tool-semantics/issues/76)
+- [ ] Final-state verifier — [#77](https://github.com/askmy-stack/tool-semantics/issues/77)
+- [ ] pass@k / pass^k reliability metrics — [#78](https://github.com/askmy-stack/tool-semantics/issues/78)
+- [ ] `behavior.*` change codes (deferred) — [#61](https://github.com/askmy-stack/tool-semantics/issues/61)
+
+## Milestone 9 — Semantic intelligence
+- [ ] Tool collision / confusability — [#79](https://github.com/askmy-stack/tool-semantics/issues/79)
+- [ ] Multi-signal rename confidence — [#80](https://github.com/askmy-stack/tool-semantics/issues/80)
+- [ ] Optional LLM semantic judge — [#81](https://github.com/askmy-stack/tool-semantics/issues/81)
+- [ ] Semantic distance / clustering — [#82](https://github.com/askmy-stack/tool-semantics/issues/82)
+
+## Milestone 10 — Traces & workflows
+- [ ] Trace schema + capture — [#83](https://github.com/askmy-stack/tool-semantics/issues/83)
+- [ ] Trace replay — [#84](https://github.com/askmy-stack/tool-semantics/issues/84)
+- [ ] Project layout / discovery baselines — [#85](https://github.com/askmy-stack/tool-semantics/issues/85), [#86](https://github.com/askmy-stack/tool-semantics/issues/86)
+
+## Milestone 11 — Safety, output, MCP-wide
+- [ ] Safety scope / side effects / confirmation — [#87](https://github.com/askmy-stack/tool-semantics/issues/87)
+- [ ] Expanded probe kinds — [#88](https://github.com/askmy-stack/tool-semantics/issues/88)
+- [ ] Output-schema compatibility — [#89](https://github.com/askmy-stack/tool-semantics/issues/89)
+- [ ] Prompt / resource / extension diffs — [#90](https://github.com/askmy-stack/tool-semantics/issues/90), [#91](https://github.com/askmy-stack/tool-semantics/issues/91)
+
+## Milestone 12+ — Prove (benchmarks, research, DX)
+- [ ] Verified benchmark corpus and research harness — [#92](https://github.com/askmy-stack/tool-semantics/issues/92)–[#102](https://github.com/askmy-stack/tool-semantics/issues/102)
+- [x] ROADMAP/PLAN + agent execution spec — [#103](https://github.com/askmy-stack/tool-semantics/issues/103)
+- Operational spec: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md)

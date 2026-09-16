@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
+from tool_semantics import __version__
 from tool_semantics.models import (
     InterfaceSnapshot,
     PromptContract,
@@ -34,6 +35,19 @@ _AUTH_HEADER_NAMES = frozenset(
         "set-cookie",
     }
 )
+
+# Protocol generations we can initialize against for tools/list capture.
+# See docs/mcp-versions.md.
+SUPPORTED_PROTOCOL_VERSIONS = frozenset(
+    {
+        "2024-11-05",
+        "2025-03-26",
+        "2025-06-18",
+        "2025-11-25",
+    }
+)
+PREFERRED_PROTOCOL_LEGACY = "2024-11-05"
+PREFERRED_PROTOCOL_HTTP = "2025-03-26"
 
 
 class McpCaptureError(ManifestError):
@@ -163,6 +177,72 @@ def _resource_from_mcp(raw: dict[str, Any]) -> ResourceContract:
     )
 
 
+def _initialize_params(preferred_version: str) -> dict[str, Any]:
+    return {
+        "protocolVersion": preferred_version,
+        "capabilities": {},
+        "clientInfo": {"name": "tool-semantics", "version": __version__},
+    }
+
+
+def _negotiated_protocol_version(init: Any) -> str:
+    if not isinstance(init, dict):
+        raise McpCaptureError("initialize result must be an object")
+    version = init.get("protocolVersion")
+    if not isinstance(version, str) or not version:
+        raise McpCaptureError("initialize result missing protocolVersion string")
+    if version not in SUPPORTED_PROTOCOL_VERSIONS:
+        supported = ", ".join(sorted(SUPPORTED_PROTOCOL_VERSIONS))
+        raise McpCaptureError(
+            f"Unsupported MCP protocol version {version!r}. "
+            f"tool-semantics supports: {supported}. "
+            "Upgrade tool-semantics or use a compatible MCP server."
+        )
+    return version
+
+
+def _server_capabilities(init: Any) -> dict[str, Any]:
+    if not isinstance(init, dict):
+        return {}
+    caps = init.get("capabilities")
+    return caps if isinstance(caps, dict) else {}
+
+
+def _list_interface_via_rpc(
+    rpc: Any,
+    notify: Any,
+    *,
+    preferred_protocol: str,
+) -> tuple[Any, list[ToolContract], list[PromptContract], list[ResourceContract], str]:
+    """Run initialize + list RPCs. ``rpc(id, method, params)`` / ``notify(method)``."""
+    init = rpc(1, "initialize", _initialize_params(preferred_protocol))
+    negotiated = _negotiated_protocol_version(init)
+    notify("notifications/initialized")
+    tools_result = rpc(2, "tools/list", {})
+    prompts: list[PromptContract] = []
+    resources: list[ResourceContract] = []
+    try:
+        prompts_result = rpc(3, "prompts/list", {})
+        raw_prompts = prompts_result.get("prompts", []) if isinstance(prompts_result, dict) else []
+        prompts = [_prompt_from_mcp(item) for item in raw_prompts if isinstance(item, dict)]
+    except McpCaptureError:
+        prompts = []
+    try:
+        resources_result = rpc(4, "resources/list", {})
+        raw_resources = (
+            resources_result.get("resources", []) if isinstance(resources_result, dict) else []
+        )
+        resources = [_resource_from_mcp(item) for item in raw_resources if isinstance(item, dict)]
+    except McpCaptureError:
+        resources = []
+
+    raw_tools = tools_result.get("tools", []) if isinstance(tools_result, dict) else []
+    if not isinstance(raw_tools, list):
+        raise McpCaptureError("tools/list result.tools must be an array")
+    tools = [_tool_from_mcp(item) for item in raw_tools if isinstance(item, dict)]
+    return init, tools, prompts, resources, negotiated
+
+
 def capture_mcp_stdio(
     command: list[str],
     *,
@@ -194,49 +274,28 @@ def capture_mcp_stdio(
     assert process.stdin is not None
     assert process.stdout is not None
     try:
-        init = _rpc(
-            process.stdin,
-            process.stdout,
-            1,
-            "initialize",
-            {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "tool-semantics", "version": "0.1.0"},
-            },
-            timeout=timeout,
-        )
-        _write_message(process.stdin, {"jsonrpc": "2.0", "method": "notifications/initialized"})
-        tools_result = _rpc(process.stdin, process.stdout, 2, "tools/list", {}, timeout=timeout)
-        prompts: list[PromptContract] = []
-        resources: list[ResourceContract] = []
-        try:
-            prompts_result = _rpc(
-                process.stdin, process.stdout, 3, "prompts/list", {}, timeout=timeout
-            )
-            raw_prompts = (
-                prompts_result.get("prompts", []) if isinstance(prompts_result, dict) else []
-            )
-            prompts = [_prompt_from_mcp(item) for item in raw_prompts if isinstance(item, dict)]
-        except McpCaptureError:
-            prompts = []
-        try:
-            resources_result = _rpc(
-                process.stdin, process.stdout, 4, "resources/list", {}, timeout=timeout
-            )
-            raw_resources = (
-                resources_result.get("resources", []) if isinstance(resources_result, dict) else []
-            )
-            resources = [
-                _resource_from_mcp(item) for item in raw_resources if isinstance(item, dict)
-            ]
-        except McpCaptureError:
-            resources = []
 
-        raw_tools = tools_result.get("tools", []) if isinstance(tools_result, dict) else []
-        if not isinstance(raw_tools, list):
-            raise McpCaptureError("tools/list result.tools must be an array")
-        tools = [_tool_from_mcp(item) for item in raw_tools if isinstance(item, dict)]
+        def rpc(request_id: int, method: str, params: dict[str, Any] | None = None) -> Any:
+            return _rpc(
+                process.stdin,
+                process.stdout,
+                request_id,
+                method,
+                params,
+                timeout=timeout,
+            )
+
+        def notify(method: str, params: dict[str, Any] | None = None) -> None:
+            message: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
+            if params is not None:
+                message["params"] = params
+            _write_message(process.stdin, message)
+
+        init, tools, prompts, resources, negotiated = _list_interface_via_rpc(
+            rpc,
+            notify,
+            preferred_protocol=PREFERRED_PROTOCOL_LEGACY,
+        )
         server_info = init.get("serverInfo", {}) if isinstance(init, dict) else {}
         resolved_name = (
             server_name
@@ -254,7 +313,12 @@ def capture_mcp_stdio(
             tools=sorted(tools, key=lambda tool: tool.name),
             prompts=sorted(prompts, key=lambda prompt: prompt.name),
             resources=sorted(resources, key=lambda resource: resource.uri),
-            metadata={"transport": "stdio", "command": command},
+            metadata={
+                "transport": "stdio",
+                "command": command,
+                "protocol_version": negotiated,
+                "server_capabilities": _server_capabilities(init),
+            },
         )
         return redact_snapshot(snapshot) if redact else snapshot
     finally:
@@ -528,6 +592,206 @@ def _snapshot_from_lists(
     return redact_snapshot(snapshot) if redact else snapshot
 
 
+def _parse_sse_json_rpc_response(raw: bytes, request_id: int, method: str) -> Any:
+    """Parse a Streamable HTTP SSE body for the JSON-RPC response matching ``request_id``."""
+    text = raw.decode("utf-8", errors="replace")
+    event_name = "message"
+    data_lines: list[str] = []
+    for line in text.splitlines():
+        if line == "":
+            if data_lines:
+                data = "\n".join(data_lines)
+                if event_name in {"message", ""}:
+                    try:
+                        payload = json.loads(data)
+                    except json.JSONDecodeError:
+                        payload = None
+                    if isinstance(payload, dict) and payload.get("id") == request_id:
+                        if "error" in payload:
+                            raise McpCaptureError(f"MCP error for {method}: {payload['error']}")
+                        return payload.get("result")
+            event_name = "message"
+            data_lines = []
+            continue
+        if line.startswith(":"):
+            continue
+        if line.startswith("event:"):
+            event_name = line[6:].strip() or "message"
+        elif line.startswith("data:"):
+            data_lines.append(line[5:].lstrip())
+    if data_lines:
+        data = "\n".join(data_lines)
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict) and payload.get("id") == request_id:
+            if "error" in payload:
+                raise McpCaptureError(f"MCP error for {method}: {payload['error']}")
+            return payload.get("result")
+    raise McpCaptureError(f"Streamable HTTP SSE response missing JSON-RPC result for {method}")
+
+
+class _StreamableHttpSession:
+    """MCP Streamable HTTP client (POST JSON-RPC to a single MCP endpoint)."""
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        timeout: float = 15.0,
+        preferred_protocol: str = PREFERRED_PROTOCOL_HTTP,
+    ) -> None:
+        if not url or not isinstance(url, str):
+            raise McpCaptureError("Streamable HTTP URL must be a non-empty string")
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise McpCaptureError(f"Invalid Streamable HTTP endpoint URL: {url!r}")
+        self._url = url
+        self._headers = _filter_request_headers(headers)
+        self._timeout = timeout
+        self._preferred_protocol = preferred_protocol
+        self._protocol_version: str | None = None
+        self._session_id: str | None = None
+        self._closed = False
+
+    @property
+    def protocol_version(self) -> str | None:
+        return self._protocol_version
+
+    @property
+    def has_session(self) -> bool:
+        return self._session_id is not None
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self._session_id is None:
+            return
+        request = urllib.request.Request(
+            self._url,
+            headers=self._request_headers(include_protocol=True),
+            method="DELETE",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout):
+                return
+        except Exception:  # noqa: BLE001 — best-effort session teardown
+            return
+
+    def _request_headers(self, *, include_protocol: bool) -> dict[str, str]:
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            **self._headers,
+        }
+        if include_protocol and self._protocol_version:
+            headers["MCP-Protocol-Version"] = self._protocol_version
+        if self._session_id:
+            headers["Mcp-Session-Id"] = self._session_id
+        return headers
+
+    def _classify_http_error(self, exc: urllib.error.HTTPError, *, method: str) -> McpCaptureError:
+        if exc.code in {401, 403}:
+            return McpCaptureError(
+                f"Streamable HTTP authentication/HTTP error {exc.code} for {method}: {exc.reason}"
+            )
+        if exc.code == 400:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", errors="replace")[:500]
+            except Exception:  # noqa: BLE001
+                body = ""
+            detail = f" ({body})" if body else ""
+            return McpCaptureError(
+                f"Streamable HTTP protocol/HTTP error 400 for {method}: {exc.reason}{detail}"
+            )
+        return McpCaptureError(
+            f"Streamable HTTP request failed with HTTP {exc.code} for {method}: {exc.reason}"
+        )
+
+    def rpc(self, request_id: int, method: str, params: dict[str, Any] | None = None) -> Any:
+        message: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
+        if params is not None:
+            message["params"] = params
+        body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+        include_protocol = method != "initialize"
+        request = urllib.request.Request(
+            self._url,
+            data=body,
+            headers=self._request_headers(include_protocol=include_protocol),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                if method == "initialize":
+                    session_header = response.headers.get("Mcp-Session-Id")
+                    if isinstance(session_header, str) and session_header.strip():
+                        self._session_id = session_header.strip()
+                content_type = (response.headers.get("Content-Type") or "").lower()
+                raw = response.read()
+                if "text/event-stream" in content_type:
+                    result = _parse_sse_json_rpc_response(raw, request_id, method)
+                else:
+                    if not raw:
+                        raise McpCaptureError(f"Empty Streamable HTTP response for {method}")
+                    try:
+                        payload = json.loads(raw.decode("utf-8"))
+                    except json.JSONDecodeError as exc:
+                        raise McpCaptureError(
+                            f"Invalid MCP JSON response for {method}: {exc}"
+                        ) from exc
+                    if not isinstance(payload, dict) or payload.get("id") != request_id:
+                        raise McpCaptureError(
+                            f"Unexpected MCP JSON-RPC response shape for {method}"
+                        )
+                    if "error" in payload:
+                        raise McpCaptureError(f"MCP error for {method}: {payload['error']}")
+                    result = payload.get("result")
+                if method == "initialize":
+                    self._protocol_version = _negotiated_protocol_version(result)
+                return result
+        except urllib.error.HTTPError as exc:
+            raise self._classify_http_error(exc, method=method) from exc
+        except urllib.error.URLError as exc:
+            raise McpCaptureError(
+                f"Network failure contacting Streamable HTTP endpoint "
+                f"{_safe_endpoint_for_metadata(self._url)!r}: {exc.reason}"
+            ) from exc
+
+    def notify(self, method: str, params: dict[str, Any] | None = None) -> None:
+        message: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
+        if params is not None:
+            message["params"] = params
+        body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+        request = urllib.request.Request(
+            self._url,
+            data=body,
+            headers=self._request_headers(include_protocol=True),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                # 202 Accepted is typical for notifications; ignore body.
+                _ = response.status
+                return
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise McpCaptureError(
+                    f"Streamable HTTP authentication/HTTP error {exc.code} "
+                    f"for notification {method}"
+                ) from exc
+            # Some servers return 200 with empty body for notifications.
+            if exc.code >= 400:
+                raise self._classify_http_error(exc, method=method) from exc
+        except urllib.error.URLError as exc:
+            raise McpCaptureError(
+                f"Network failure during Streamable HTTP notification {method}: {exc.reason}"
+            ) from exc
+
+
 def capture_mcp_sse(
     url: str,
     *,
@@ -536,7 +800,7 @@ def capture_mcp_sse(
     server_name: str | None = None,
     redact: bool = True,
 ) -> InterfaceSnapshot:
-    """Connect to a remote MCP server over SSE and capture tools/prompts/resources.
+    """Connect to a remote MCP server over legacy SSE and capture tools/prompts/resources.
 
     Authentication headers (``Authorization``, ``X-Api-Key``, cookies, …) may be
     supplied for the HTTP requests but are **never** written into snapshot
@@ -546,42 +810,11 @@ def capture_mcp_sse(
     session = _SseSession(url, headers=request_headers, timeout=timeout)
     session.start()
     try:
-        init = session.rpc(
-            1,
-            "initialize",
-            {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "tool-semantics", "version": "0.1.0"},
-            },
+        init, tools, prompts, resources, negotiated = _list_interface_via_rpc(
+            session.rpc,
+            session.notify,
+            preferred_protocol=PREFERRED_PROTOCOL_LEGACY,
         )
-        session.notify("notifications/initialized")
-        tools_result = session.rpc(2, "tools/list", {})
-        prompts: list[PromptContract] = []
-        resources: list[ResourceContract] = []
-        try:
-            prompts_result = session.rpc(3, "prompts/list", {})
-            raw_prompts = (
-                prompts_result.get("prompts", []) if isinstance(prompts_result, dict) else []
-            )
-            prompts = [_prompt_from_mcp(item) for item in raw_prompts if isinstance(item, dict)]
-        except McpCaptureError:
-            prompts = []
-        try:
-            resources_result = session.rpc(4, "resources/list", {})
-            raw_resources = (
-                resources_result.get("resources", []) if isinstance(resources_result, dict) else []
-            )
-            resources = [
-                _resource_from_mcp(item) for item in raw_resources if isinstance(item, dict)
-            ]
-        except McpCaptureError:
-            resources = []
-
-        raw_tools = tools_result.get("tools", []) if isinstance(tools_result, dict) else []
-        if not isinstance(raw_tools, list):
-            raise McpCaptureError("tools/list result.tools must be an array")
-        tools = [_tool_from_mcp(item) for item in raw_tools if isinstance(item, dict)]
         server_info = init.get("serverInfo", {}) if isinstance(init, dict) else {}
         resolved_name = (
             server_name
@@ -592,6 +825,8 @@ def capture_mcp_sse(
             "transport": "sse",
             "endpoint": _safe_endpoint_for_metadata(url),
             "request_header_names": _headers_for_metadata(request_headers),
+            "protocol_version": negotiated,
+            "server_capabilities": _server_capabilities(init),
         }
         return _snapshot_from_lists(
             protocol="mcp-sse",
@@ -611,9 +846,132 @@ def capture_mcp_sse(
         session.close()
 
 
+def capture_mcp_http(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: float = 15.0,
+    server_name: str | None = None,
+    redact: bool = True,
+) -> InterfaceSnapshot:
+    """Connect to a remote MCP server over Streamable HTTP and capture the interface.
+
+    Auth headers may be supplied for requests but are never written into snapshot
+    metadata. Negotiated ``protocolVersion`` and transport are recorded.
+    """
+    request_headers = _filter_request_headers(headers)
+    session = _StreamableHttpSession(
+        url,
+        headers=request_headers,
+        timeout=timeout,
+        preferred_protocol=PREFERRED_PROTOCOL_HTTP,
+    )
+    try:
+        init, tools, prompts, resources, negotiated = _list_interface_via_rpc(
+            session.rpc,
+            session.notify,
+            preferred_protocol=PREFERRED_PROTOCOL_HTTP,
+        )
+        server_info = init.get("serverInfo", {}) if isinstance(init, dict) else {}
+        resolved_name = (
+            server_name
+            or (server_info.get("name") if isinstance(server_info, dict) else None)
+            or _safe_endpoint_for_metadata(url)
+        )
+        metadata = {
+            "transport": "streamable-http",
+            "endpoint": _safe_endpoint_for_metadata(url),
+            "request_header_names": _headers_for_metadata(request_headers),
+            "protocol_version": negotiated,
+            "server_capabilities": _server_capabilities(init),
+            "mcp_session": session.has_session,
+        }
+        return _snapshot_from_lists(
+            protocol="mcp-http",
+            server_name=str(resolved_name),
+            server_version=(
+                str(server_info.get("version"))
+                if isinstance(server_info, dict) and server_info.get("version") is not None
+                else None
+            ),
+            tools=tools,
+            prompts=prompts,
+            resources=resources,
+            metadata=metadata,
+            redact=redact,
+        )
+    finally:
+        session.close()
+
+
+def _is_transport_mismatch_error(exc: McpCaptureError) -> bool:
+    """Whether a Streamable HTTP failure should trigger legacy SSE fallback."""
+    text = str(exc).lower()
+    if "authentication/http error" in text:
+        return False
+    if "unsupported mcp protocol version" in text:
+        return False
+    if "network failure" in text:
+        # Connection refused / DNS: try SSE only if the URL might be an SSE path.
+        return True
+    if "http 404" in text or "http 405" in text or "http 400" in text:
+        return True
+    if "invalid mcp json response" in text or "unexpected mcp json-rpc" in text:
+        return True
+    if "empty streamable http response" in text:
+        return True
+    return False
+
+
+def capture_mcp_remote(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: float = 15.0,
+    server_name: str | None = None,
+    redact: bool = True,
+) -> InterfaceSnapshot:
+    """Auto-detect remote transport: Streamable HTTP first, then legacy SSE.
+
+    Matches the MCP backwards-compatibility guidance for clients given a bare URL.
+    Authentication failures and unsupported protocol versions do not fall back.
+    """
+    http_error: McpCaptureError | None = None
+    try:
+        return capture_mcp_http(
+            url,
+            headers=headers,
+            timeout=timeout,
+            server_name=server_name,
+            redact=redact,
+        )
+    except McpCaptureError as exc:
+        if not _is_transport_mismatch_error(exc):
+            raise
+        http_error = exc
+    try:
+        return capture_mcp_sse(
+            url,
+            headers=headers,
+            timeout=timeout,
+            server_name=server_name,
+            redact=redact,
+        )
+    except McpCaptureError as sse_exc:
+        raise McpCaptureError(
+            f"Remote MCP capture failed for {_safe_endpoint_for_metadata(url)!r}. "
+            f"Streamable HTTP: {http_error}. Legacy SSE: {sse_exc}"
+        ) from sse_exc
+
+
 # Re-export for typing convenience in callers that inspect parameters.
 __all__ = [
     "McpCaptureError",
+    "PREFERRED_PROTOCOL_HTTP",
+    "PREFERRED_PROTOCOL_LEGACY",
+    "SUPPORTED_PROTOCOL_VERSIONS",
+    "capture_mcp_http",
+    "capture_mcp_remote",
     "capture_mcp_sse",
     "capture_mcp_stdio",
 ]
