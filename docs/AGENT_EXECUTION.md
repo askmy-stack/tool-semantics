@@ -13,8 +13,9 @@ Positioning (use consistently):
 
 - Full test suite: **passing** (`pytest`, `ruff check`).
 - Package version on `main`: **0.4.0** (PR #104 adds Streamable HTTP on branch).
-- Layers: **DETECT** (structural diff) shipped; **TEST** (probes/runner) library-only;
-  **PROTECT** (policy/Action) structural-only.
+- Layers: **DETECT** (structural diff) shipped; **TEST** (probes/runner) library +
+  CLI (`probe`) + optional compare/Action gates (#58); **PROTECT** (policy/Action)
+  structural + opt-in probe thresholds.
 
 ## Completed vs missing (gap analysis)
 
@@ -36,7 +37,7 @@ Positioning (use consistently):
 | Capability | Gap | Issues | Priority |
 | --- | --- | --- | --- |
 | Protocol/capability diff | Not compared | #75 | P1 |
-| Probes in CLI/CI | Library only | #57, #58 | P0 |
+| Probes in CLI/CI | Compare/Action probe gates | #58 | P0 |
 | Unified `eval` | Missing | #76 | P0 |
 | Final-state verifier | Missing | #105 | P1 |
 | pass@k / pass^k | Library trials only | #106 | P1 |
@@ -58,7 +59,7 @@ Positioning (use consistently):
 
 | Issue | Title |
 | --- | --- |
-| #57 | Probe CLI (offline + model-backed) |
+| #57 | Probe CLI (offline + model-backed) — **done** (#119) |
 | #58 | Gate compare / Action on probe metrics |
 | #59 | Streamable HTTP capture (PR #104) |
 | #73 | Protocol negotiation (PR #104) |

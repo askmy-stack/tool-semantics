@@ -16,6 +16,7 @@ from tool_semantics.scorecard import (
     EvidenceLabel,
     build_scorecard,
     explain_change,
+    render_pr_comment_markdown,
     render_scorecard_markdown,
 )
 
@@ -130,3 +131,128 @@ def test_scorecard_markdown_and_compare_cli(tmp_path: Path) -> None:
     assert payload["scorecard"]["final_result"] == "FAIL"
     dims = payload["scorecard"]["dimensions"]
     assert any(dim["name"] == "behavioral" and dim["score"] is None for dim in dims)
+
+
+def test_pr_comment_structural_only_when_probes_omitted() -> None:
+    report = CompatibilityReport(
+        baseline="a",
+        candidate="b",
+        changes=[
+            Change(
+                severity=Severity.BREAKING,
+                code="tool.removed",
+                subject="search_issues",
+                message="Tool 'search_issues' was removed.",
+            )
+        ],
+    )
+    card = build_scorecard(report)
+    payload = {
+        "counts": report.counts_by_severity(),
+        "scorecard": card.to_json(),
+        "probes": {"enabled": False, "failed": False},
+        "policy": {"probe_failed": False},
+    }
+    comment = render_pr_comment_markdown(
+        report_payload=payload,
+        full_report_markdown="# full report\n",
+    )
+    assert "## Tool-Semantics eval summary" in comment
+    assert "**STATUS:** `FAIL`" in comment
+    assert "### Counts" in comment
+    assert "### Scorecard" in comment
+    assert "`behavioral`" in comment
+    assert "n/a" in comment
+    assert "structural-only summary" in comment
+    assert "### Top breaking findings" in comment
+    assert "`tool.removed` on `search_issues`" in comment
+    assert "<details>" in comment
+    assert "full report" in comment
+
+
+def test_pr_comment_probe_failure_forces_status_fail() -> None:
+    report = CompatibilityReport(baseline="a", candidate="b", changes=[])
+    card = build_scorecard(report, behavioral_ran=True, stability_ran=False)
+    payload = {
+        "counts": report.counts_by_severity(),
+        "scorecard": card.to_json(),
+        "probes": {"enabled": True, "failed": True},
+        "policy": {"probe_failed": True},
+    }
+    comment = render_pr_comment_markdown(report_payload=payload)
+    assert "**STATUS:** `FAIL`" in comment
+    assert "Probe gate failed" in comment
+    assert "structural-only summary" not in comment
+
+
+def test_pr_comment_fixture_snapshot() -> None:
+    """Stable fixture snapshot of the eval-style PR comment (#78)."""
+    report = CompatibilityReport(
+        baseline="baseline",
+        candidate="candidate",
+        changes=[
+            Change(
+                severity=Severity.BREAKING,
+                code="tool.removed",
+                subject="search_issues",
+                message="Tool 'search_issues' was removed.",
+            ),
+            Change(
+                severity=Severity.CRITICAL,
+                code="tool.risk_changed",
+                subject="delete_repo",
+                message="read_only → destructive",
+            ),
+            Change(
+                severity=Severity.WARNING,
+                code="tool.description_changed",
+                subject="list_prs",
+                message="description text changed",
+            ),
+        ],
+    )
+    card = build_scorecard(report)
+    payload = {
+        "counts": report.counts_by_severity(),
+        "scorecard": card.to_json(),
+        "probes": {"enabled": False},
+        "policy": {"probe_failed": False},
+    }
+    comment = render_pr_comment_markdown(report_payload=payload)
+    expected = (
+        "## Tool-Semantics eval summary\n"
+        "\n"
+        "**STATUS:** `FAIL`\n"
+        "\n"
+        "### Counts\n"
+        "\n"
+        "- critical: `1`\n"
+        "- breaking: `1`\n"
+        "- warning: `1`\n"
+        "- info: `0`\n"
+        "\n"
+        "### Scorecard\n"
+        "\n"
+        "| Dimension | Status | Score | Evidence |\n"
+        "| --- | --- | ---: | --- |\n"
+        "| `structural` | `fail` | 0% | `DETERMINISTIC` |\n"
+        "| `semantic` | `warning` | 75% | `DETERMINISTIC` |\n"
+        "| `behavioral` | `n/a` | n/a | `N/A` |\n"
+        "| `safety` | `fail` | 0% | `DETERMINISTIC` |\n"
+        "| `stability` | `n/a` | n/a | `N/A` |\n"
+        "\n"
+        "_Behavioral / stability probes were not configured — "
+        "structural-only summary (behavioral/stability show n/a)._\n"
+        "\n"
+        "### Safety\n"
+        "\n"
+        "**Safety status:** `fail` (breaking/critical risk changes).\n"
+        "\n"
+        "### Top breaking findings\n"
+        "\n"
+        "- `tool.removed` on `search_issues` (`DETERMINISTIC`) — "
+        "Tool 'search_issues' was removed.\n"
+        "- `tool.risk_changed` on `delete_repo` (`DETERMINISTIC`) — "
+        "read_only → destructive\n"
+    )
+    assert comment == expected

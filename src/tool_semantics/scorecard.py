@@ -394,3 +394,148 @@ def render_scorecard_markdown(scorecard: CompatibilityScorecard) -> str:
             lines.append(f"- **Possible fix:** {item.remediation}")
             lines.append("")
     return "\n".join(lines)
+
+
+def scorecard_from_json(payload: dict[str, Any]) -> CompatibilityScorecard:
+    """Rebuild a scorecard view from compare JSON (no Change objects required)."""
+    dims: list[DimensionScore] = []
+    for item in payload.get("dimensions") or []:
+        dims.append(
+            DimensionScore(
+                name=DimensionName(item["name"]),
+                status=DimensionStatus(item["status"]),
+                score=item.get("score"),
+                finding_count=int(item.get("finding_count") or 0),
+                breaking_count=int(item.get("breaking_count") or 0),
+                warning_count=int(item.get("warning_count") or 0),
+                evidence=EvidenceLabel(item.get("evidence") or "N/A"),
+                note=str(item.get("note") or ""),
+            )
+        )
+    explanations: list[FindingExplanation] = []
+    for item in payload.get("explanations") or []:
+        explanations.append(
+            FindingExplanation(
+                code=str(item.get("code") or ""),
+                subject=str(item.get("subject") or ""),
+                severity=str(item.get("severity") or ""),
+                what_changed=str(item.get("what_changed") or ""),
+                why_it_matters=str(item.get("why_it_matters") or ""),
+                remediation=str(item.get("remediation") or ""),
+                evidence=EvidenceLabel(item.get("evidence") or "DETERMINISTIC"),
+            )
+        )
+    return CompatibilityScorecard(
+        dimensions=dims,
+        explanations=explanations,
+        final_result=str(payload.get("final_result") or "PASS"),
+        forced_fail=bool(payload.get("forced_fail")),
+        forced_fail_reason=payload.get("forced_fail_reason"),
+        counts=dict(payload.get("counts") or {}),
+    )
+
+
+def render_pr_comment_markdown(
+    *,
+    report_payload: dict[str, Any] | None = None,
+    scorecard: CompatibilityScorecard | None = None,
+    full_report_markdown: str | None = None,
+) -> str:
+    """Eval-style GitHub PR comment summary (#78).
+
+    Prefer ``report_payload`` from compare JSON (includes counts, scorecard,
+    optional probes). Falls back to a ``CompatibilityScorecard`` instance.
+    When probes are omitted, Behavioral/Stability remain N/A — structural-only.
+    """
+    card = scorecard
+    counts: dict[str, int] = {}
+    probes_enabled = False
+    probe_failed = False
+    if report_payload is not None:
+        counts = dict(report_payload.get("counts") or {})
+        raw_card = report_payload.get("scorecard")
+        if card is None and isinstance(raw_card, dict):
+            card = scorecard_from_json(raw_card)
+            if not counts:
+                counts = dict(card.counts)
+        probes = report_payload.get("probes") or {}
+        probes_enabled = bool(probes.get("enabled"))
+        probe_failed = bool(
+            (report_payload.get("policy") or {}).get("probe_failed") or probes.get("failed")
+        )
+
+    if card is None:
+        raise ValueError("render_pr_comment_markdown requires report_payload or scorecard")
+
+    if not counts:
+        counts = dict(card.counts)
+
+    status = "FAIL" if probe_failed else card.final_result
+
+    lines = [
+        "## Tool-Semantics eval summary",
+        "",
+        f"**STATUS:** `{status}`",
+        "",
+        "### Counts",
+        "",
+        f"- critical: `{counts.get('critical', 0)}`",
+        f"- breaking: `{counts.get('breaking', 0)}`",
+        f"- warning: `{counts.get('warning', 0)}`",
+        f"- info: `{counts.get('info', 0)}`",
+        "",
+        "### Scorecard",
+        "",
+        "| Dimension | Status | Score | Evidence |",
+        "| --- | --- | ---: | --- |",
+    ]
+    for dim in card.dimensions:
+        score = "n/a" if dim.score is None else f"{dim.score:.0%}"
+        lines.append(
+            f"| `{dim.name.value}` | `{dim.status.value}` | {score} | `{dim.evidence.value}` |"
+        )
+    lines.append("")
+
+    if not probes_enabled:
+        lines.append(
+            "_Behavioral / stability probes were not configured — "
+            "structural-only summary (behavioral/stability show n/a)._"
+        )
+        lines.append("")
+    elif probe_failed:
+        lines.append("_Probe gate failed — see behavioral section in the full report._")
+        lines.append("")
+
+    safety = next((dim for dim in card.dimensions if dim.name is DimensionName.SAFETY), None)
+    if safety is not None and safety.status is DimensionStatus.FAIL:
+        lines.extend(
+            [
+                "### Safety",
+                "",
+                (f"**Safety status:** `{safety.status.value}` (breaking/critical risk changes)."),
+                "",
+            ]
+        )
+
+    if card.explanations:
+        lines.extend(["### Top breaking findings", ""])
+        for item in card.explanations[:5]:
+            lines.append(
+                f"- `{item.code}` on `{item.subject}` (`{item.evidence.value}`) — "
+                f"{item.what_changed}"
+            )
+        lines.append("")
+
+    if full_report_markdown:
+        lines.extend(
+            [
+                "<details>",
+                "<summary>Full Tool-Semantics report</summary>",
+                "",
+                full_report_markdown.rstrip(),
+                "",
+                "</details>",
+                "",
+            ]
+        )
+    return "\n".join(lines)

@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from tool_semantics.diff import CompatibilityReport, Severity
+from tool_semantics.probe_gate import ProbeGateReport, TargetProbeOutcome
 from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
 from tool_semantics.scorecard import (
     CompatibilityScorecard,
@@ -19,6 +20,7 @@ def render_markdown(
     *,
     scorecard: CompatibilityScorecard | None = None,
     include_scorecard: bool = True,
+    probe_gate: ProbeGateReport | None = None,
 ) -> str:
     """Render a GitHub-friendly Markdown compatibility report."""
     status = "compatible" if report.is_compatible else "breaking"
@@ -54,10 +56,94 @@ def render_markdown(
         lines.append("")
 
     if include_scorecard:
-        card = scorecard if scorecard is not None else build_scorecard(report)
+        card = scorecard
+        if card is None:
+            card = build_scorecard(
+                report,
+                probe_gate=probe_gate if probe_gate is not None and probe_gate.enabled else None,
+            )
         lines.append(render_scorecard_markdown(card).rstrip())
         lines.append("")
+    if probe_gate is not None and probe_gate.enabled:
+        lines.append(render_probe_gate_markdown(probe_gate).rstrip())
+        lines.append("")
     return "\n".join(lines)
+
+
+def render_probe_gate_markdown(gate: ProbeGateReport) -> str:
+    """Markdown section for probe metrics / stability attached to compare."""
+    status = "FAIL" if gate.failed else "PASS"
+    lines = [
+        "## Behavioral probes",
+        "",
+        f"**Probe gate:** `{status}`",
+        "",
+    ]
+    settings = gate.settings
+    if settings:
+        lines.append(
+            f"- Mode: `{settings.get('mode', 'n/a')}` · "
+            f"Target: `{settings.get('target', 'n/a')}` · "
+            f"Trials: `{settings.get('trials', 1)}`"
+        )
+        if settings.get("file"):
+            lines.append(f"- Probe file: `{settings['file']}`")
+        lines.append("")
+    for outcome in gate.targets:
+        lines.extend(_render_target_probe_section(outcome))
+    if gate.breaches:
+        lines.append("### Threshold breaches")
+        lines.append("")
+        for breach in gate.breaches:
+            safe = breach.replace("|", "\\|")
+            lines.append(f"- {safe}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _render_target_probe_section(outcome: TargetProbeOutcome) -> list[str]:
+    lines = [
+        f"### Target: `{outcome.target}` ({outcome.mode})",
+        "",
+        f"- Passed: `{'yes' if outcome.passed else 'no'}`",
+        "",
+    ]
+    if outcome.metrics is not None:
+        lines.append(render_probe_metrics_markdown(outcome.metrics, title="Metrics").rstrip())
+        lines.append("")
+    if outcome.offline is not None:
+        lines.extend(
+            [
+                "| Probe | Passed | Message |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for offline_result in outcome.offline.results:
+            message = offline_result.message.replace("|", "\\|")
+            lines.append(
+                f"| `{offline_result.probe_id}` | "
+                f"{'yes' if offline_result.passed else 'no'} | {message} |"
+            )
+        lines.append("")
+    if outcome.model is not None:
+        lines.extend(
+            [
+                "| Probe | Passed | Outcome | Selected | Message |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+        )
+        for model_result in outcome.model.results:
+            message = model_result.message.replace("|", "\\|")
+            lines.append(
+                f"| `{model_result.probe_id}` | {'yes' if model_result.passed else 'no'} | "
+                f"`{model_result.outcome.value}` | `{model_result.selected_tool or ''}` | "
+                f"{message} |"
+            )
+        lines.append("")
+    if outcome.stability is not None:
+        lines.append(render_stability_markdown(outcome.stability).rstrip())
+        lines.append("")
+    return lines
 
 
 def _fmt_rate(value: float | None) -> str:
