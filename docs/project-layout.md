@@ -45,4 +45,4 @@ Explicit path flags always win — discovery never overrides a provided path.
 - Config schema: [config.md](config.md)
 - Probes: [probes.md](probes.md)
 - Adapters: [adapters.md](adapters.md)
-- Full DX init/doctor: [#96](https://github.com/askmy-stack/tool-semantics/issues/96)
+- `init` / `doctor`: [dx.md](dx.md) · [#96](https://github.com/askmy-stack/tool-semantics/issues/96)
