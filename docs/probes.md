@@ -31,6 +31,24 @@ Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
+## Compare / CI probe gate
+
+`tool-semantics compare` can optionally run the same suite and fail the release
+policy when thresholds are breached (issue #58):
+
+```bash
+tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json \
+  --probes examples/probes/github_v1_offline.json \
+  --probe-mode offline \
+  --json-output report.json --markdown-output report.md
+```
+
+Or configure `[probes]` / `[probes.thresholds]` in `.tool-semantics.toml` (see
+[config.md](config.md)). The composite GitHub Action accepts matching `probes`,
+`probe-mode`, `probe-trials`, and related inputs ([github-action.md](github-action.md)).
+
+Missing probe files or missing model credentials (when `mode=model`) exit `2`.
+
 ## Approval workflow
 
 1. Author a `Probe` with `intent`, expectations (`expected_tool`,
