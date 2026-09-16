@@ -614,6 +614,20 @@ def compare(
             help="Write a GitHub-friendly Markdown report.",
         ),
     ] = None,
+    sarif_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--sarif-output",
+            help="Optional SARIF 2.1.0 report (breaking/critical findings).",
+        ),
+    ] = None,
+    html_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--html-output",
+            help="Optional self-contained HTML summary (scorecard + findings).",
+        ),
+    ] = None,
     config: Annotated[
         Path | None,
         typer.Option(
@@ -700,5 +714,13 @@ def compare(
     if markdown_output is not None:
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
+    if sarif_output is not None:
+        from tool_semantics.sarif import write_sarif
+
+        write_sarif(report, sarif_output)
+    if html_output is not None:
+        from tool_semantics.html_report import write_html_report
+
+        write_html_report(report, html_output)
     if fails_policy:
         raise typer.Exit(code=1)

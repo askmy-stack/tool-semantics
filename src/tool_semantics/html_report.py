@@ -1,0 +1,168 @@
+"""Self-contained HTML compatibility report (#99).
+
+No JS framework — plain HTML + CSS for shareable eval/compare summaries.
+Default CLI outputs remain Markdown/JSON.
+"""
+
+from __future__ import annotations
+
+import html
+from pathlib import Path
+
+from tool_semantics.diff import CompatibilityReport, Severity
+
+_CSS = """
+:root {
+  --bg: #0f1419;
+  --panel: #1a2332;
+  --text: #e7ecf3;
+  --muted: #9aa7b8;
+  --ok: #3dd68c;
+  --fail: #f07178;
+  --warn: #ffcc66;
+  --info: #7aa2f7;
+  --border: #2a3548;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+}
+main { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.5rem; margin: 0 0 0.35rem; }
+h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); margin-bottom: 1.5rem; }
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.badge.ok { background: color-mix(in srgb, var(--ok) 25%, transparent); color: var(--ok); }
+.badge.fail { background: color-mix(in srgb, var(--fail) 25%, transparent); color: var(--fail); }
+.scorecard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+.card .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
+.card .value { font-size: 1.6rem; font-weight: 700; margin-top: 0.2rem; font-family: var(--mono); }
+.card.critical .value { color: var(--fail); }
+.card.breaking .value { color: var(--fail); }
+.card.warning .value { color: var(--warn); }
+.card.info .value { color: var(--info); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.92rem;
+}
+th, td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+tr:last-child td { border-bottom: none; }
+code { font-family: var(--mono); font-size: 0.88em; }
+.sev-critical, .sev-breaking { color: var(--fail); }
+.sev-warning { color: var(--warn); }
+.sev-info { color: var(--info); }
+.empty { color: var(--muted); font-style: italic; }
+footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; }
+"""
+
+
+def _esc(value: str) -> str:
+    return html.escape(value, quote=True)
+
+
+def render_html_report(report: CompatibilityReport) -> str:
+    """Render a self-contained HTML summary (scorecard + findings)."""
+    status = "compatible" if report.is_compatible else "breaking"
+    badge_class = "ok" if report.is_compatible else "fail"
+    counts = report.counts_by_severity()
+    rows: list[str] = []
+    for change in report.changes:
+        sev = change.severity.value
+        rows.append(
+            "<tr>"
+            f'<td class="sev-{_esc(sev)}"><code>{_esc(sev)}</code></td>'
+            f"<td><code>{_esc(change.code)}</code></td>"
+            f"<td><code>{_esc(change.subject)}</code></td>"
+            f"<td>{_esc(change.message)}</td>"
+            "</tr>"
+        )
+    findings = (
+        "\n".join(rows)
+        if rows
+        else '<tr><td colspan="4" class="empty">No structural changes detected.</td></tr>'
+    )
+    title = f"Tool-Semantics: {_esc(report.baseline)} → {_esc(report.candidate)}"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{title}</title>
+  <style>{_CSS}</style>
+</head>
+<body>
+  <main>
+    <h1>{title}</h1>
+    <p class="sub">Optional HTML summary (#99). Default outputs remain Markdown/JSON.</p>
+    <p><span class="badge {badge_class}">{_esc(status)}</span></p>
+
+    <h2>Scorecard</h2>
+    <div class="scorecard">
+      <div class="card critical">
+        <div class="label">Critical</div>
+        <div class="value">{counts["critical"]}</div>
+      </div>
+      <div class="card breaking">
+        <div class="label">Breaking</div>
+        <div class="value">{counts["breaking"]}</div>
+      </div>
+      <div class="card warning">
+        <div class="label">Warning</div>
+        <div class="value">{counts["warning"]}</div>
+      </div>
+      <div class="card info">
+        <div class="label">Info</div>
+        <div class="value">{counts["info"]}</div>
+      </div>
+    </div>
+
+    <h2>Findings</h2>
+    <table>
+      <thead>
+        <tr><th>Severity</th><th>Code</th><th>Subject</th><th>Change</th></tr>
+      </thead>
+      <tbody>
+        {findings}
+      </tbody>
+    </table>
+
+    <footer>Generated by tool-semantics · severities {", ".join(s.value for s in Severity)}</footer>
+  </main>
+</body>
+</html>
+"""
+
+
+def write_html_report(report: CompatibilityReport, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_html_report(report), encoding="utf-8")

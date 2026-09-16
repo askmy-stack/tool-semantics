@@ -3,6 +3,9 @@
 Composite action that compares two Tool-Semantics snapshots in CI and can post
 the Markdown report as a pull-request comment.
 
+Optional compare outputs (`--sarif-output`, `--html-output`) are documented in
+[reporting.md](reporting.md); they are not required for the Action.
+
 ## Location
 
 ```text
