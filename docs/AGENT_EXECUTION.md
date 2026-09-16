@@ -35,7 +35,7 @@ Positioning (use consistently):
 
 | Capability | Gap | Issues | Priority |
 | --- | --- | --- | --- |
-| Protocol/capability diff | Not compared | #75 | P1 |
+| Protocol/capability diff | Diffs version/transport/caps | #75 | P1 |
 | Probes in CLI/CI | Library only | #57, #58 | P0 |
 | Unified `eval` | Missing | #76 | P0 |
 | Final-state verifier | Missing | #105 | P1 |

@@ -121,3 +121,76 @@ def test_detects_parameter_default_added_and_removed() -> None:
         change.code == "parameter.default_changed" and "added" in change.message
         for change in report_added.changes
     )
+
+
+def test_protocol_version_and_transport_changed() -> None:
+    baseline = capture_manifest(Path("examples/github_server_v1.json"))
+    candidate = capture_manifest(Path("examples/github_server_v1.json"))
+    baseline.protocol = "mcp-stdio"
+    candidate.protocol = "mcp-http"
+    baseline.metadata = {
+        "protocol_version": "2024-11-05",
+        "transport": "stdio",
+        "server_capabilities": {"tools": {}, "prompts": {}},
+    }
+    candidate.metadata = {
+        "protocol_version": "2025-03-26",
+        "transport": "streamable-http",
+        "server_capabilities": {"tools": {}, "prompts": {}},
+    }
+    report = compare_snapshots(baseline, candidate)
+    assert any(change.code == "protocol.version_changed" for change in report.changes)
+    assert any(change.code == "transport.changed" for change in report.changes)
+    assert not report.is_compatible
+
+
+def test_capability_added_removed_changed() -> None:
+    baseline = capture_manifest(Path("examples/github_server_v1.json"))
+    candidate = capture_manifest(Path("examples/github_server_v1.json"))
+    baseline.metadata = {
+        "protocol_version": "2025-03-26",
+        "transport": "streamable-http",
+        "server_capabilities": {
+            "tools": {"listChanged": True},
+            "prompts": {},
+            "resources": {},
+        },
+    }
+    candidate.metadata = {
+        "protocol_version": "2025-03-26",
+        "transport": "streamable-http",
+        "server_capabilities": {
+            "tools": {"listChanged": False},
+            "prompts": {},
+            "logging": {},
+        },
+    }
+    report = compare_snapshots(baseline, candidate)
+    codes = {change.code: change for change in report.changes}
+    assert codes["capability.removed"].subject == "resources"
+    assert "resource" in codes["capability.removed"].message
+    assert codes["capability.added"].subject == "logging"
+    assert codes["capability.changed"].subject == "tools"
+    assert not report.is_compatible  # capability.removed is breaking
+
+
+def test_manifest_without_protocol_metadata_skips_protocol_diff() -> None:
+    baseline = capture_manifest(Path("examples/github_server_v1.json"))
+    candidate = capture_manifest(Path("examples/github_server_v1.json"))
+    report = compare_snapshots(baseline, candidate)
+    assert not any(
+        change.code.startswith(("protocol.", "transport.", "capability."))
+        for change in report.changes
+    )
+
+
+def test_capability_removal_fails_default_policy() -> None:
+    from tool_semantics.policy import ReleasePolicy
+
+    baseline = capture_manifest(Path("examples/github_server_v1.json"))
+    candidate = capture_manifest(Path("examples/github_server_v1.json"))
+    baseline.metadata = {"server_capabilities": {"tools": {}, "prompts": {}}}
+    candidate.metadata = {"server_capabilities": {"tools": {}}}
+    report = compare_snapshots(baseline, candidate)
+    assert any(change.code == "capability.removed" for change in report.changes)
+    assert ReleasePolicy().should_fail(report)

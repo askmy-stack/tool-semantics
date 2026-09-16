@@ -5,6 +5,11 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 
 | Code | Typical severity | Meaning |
 | --- | --- | --- |
+| `protocol.version_changed` | breaking | Negotiated MCP `protocolVersion` differs between snapshots |
+| `transport.changed` | warning | Capture transport / protocol surface changed (stdio ↔ HTTP ↔ SSE) |
+| `capability.removed` | breaking | A server capability key disappeared (e.g. `prompts`, `resources`) |
+| `capability.added` | info | A server capability key appeared |
+| `capability.changed` | warning | Capability configuration object changed for a shared key |
 | `tool.removed` | breaking | A tool present in the baseline is absent in the candidate |
 | `tool.added` | info | A new tool appeared; selection-collision testing is still pending |
 | `tool.description_changed` | warning | Description text changed; model tool-selection may drift |
@@ -25,6 +30,22 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `parameter.schema_changed` | breaking | Parameter JSON Schema changed (excluding `default`; non-enum or unstructured) |
 | `parameter.enum_values_removed` | breaking | One or more enum values were removed |
 | `parameter.enum_values_added` | info | One or more enum values were added |
+
+## Protocol / transport / capabilities
+
+Live MCP capture stores comparable fields on the snapshot:
+
+| Metadata key | Source |
+| --- | --- |
+| `protocol_version` | Negotiated `initialize.protocolVersion` |
+| `transport` | `stdio` / `streamable-http` / `sse` |
+| `server_capabilities` | `initialize.capabilities` object |
+
+Manifest-only captures without these keys skip protocol diffs (no false
+positives). Capability removals are **breaking** by default, so release policy
+`fail_at_or_above = "breaking"` (the default) fails CI; use `critical-only` /
+`permissive` or ignore rules if a removal is intentional. See
+[mcp-versions.md](mcp-versions.md).
 
 ## Notes for contributors
 
