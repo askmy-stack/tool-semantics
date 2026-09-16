@@ -48,12 +48,14 @@ variants = generate_format_variants(snapshot)
 report = run_format_sensitivity(
     snapshot,
     probes,
-    scripted_fake_factory([
-        ModelCompletion(
-            tool_calls=[ToolCallRequest(name="search_issues", arguments={"query": "x"})],
-            metadata=RunnerMetadata(provider="fake", model="fake"),
-        )
-    ]),
+    scripted_fake_factory(
+        [
+            ModelCompletion(
+                tool_calls=[ToolCallRequest(name="search_issues", arguments={"query": "x"})],
+                metadata=RunnerMetadata(provider="fake", model="fake"),
+            )
+        ]
+    ),
     threshold=0.05,
 )
 assert report.passed  # Fake runners are format-insensitive
