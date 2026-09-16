@@ -150,27 +150,46 @@ def render_model_probe_report_markdown(report: ModelProbeReport) -> str:
 
 
 def render_stability_markdown(report: StabilityReport) -> str:
-    """Markdown distinguishing unstable probes from deterministic failures (#47)."""
+    """Markdown distinguishing unstable probes from deterministic failures (#47/#106)."""
+    rel = report.reliability
     lines = [
         "# Probe stability report",
         "",
-        f"- Trials: {report.trial_count}",
+        f"- Trials (k): {report.trial_count}",
         f"- Seed: {report.seed if report.seed is not None else 'n/a'}",
+        "",
+        "## Reliability (pass@k / pass^k)",
+        "",
+        f"- pass@k rate: {_fmt_rate(rel.pass_at_k_rate)} "
+        "(fraction of probes with ≥1 successful trial)",
+        f"- pass^k rate: {_fmt_rate(rel.pass_hat_k_rate)} "
+        "(fraction of probes where every trial succeeded)",
+        f"- Mean per-probe pass rate: {_fmt_rate(rel.mean_pass_rate)}",
+        (
+            f"- Mean stability score: {rel.mean_stability_score:.2f}"
+            if rel.mean_stability_score is not None
+            else "- Mean stability score: n/a"
+        ),
+        f"- Unstable probes: {rel.unstable_count}",
+        f"- Deterministic failures: {rel.deterministic_failure_count}",
         "",
         render_probe_metrics_markdown(report.metrics, title="Aggregate metrics").rstrip(),
         "",
         "## Stability by probe",
         "",
-        "| Probe | Stability | Unstable | Deterministic failure | Aggregate passed | Message |",
-        "| --- | ---: | --- | --- | --- | --- |",
+        "| Probe | pass@k | pass^k | Pass rate | Stability | Unstable | Det. fail | Message |",
+        "| --- | --- | --- | ---: | ---: | --- | --- | --- |",
     ]
     for summary in report.summaries:
         safe_message = summary.message.replace("|", "\\|")
         lines.append(
-            f"| `{summary.probe_id}` | {summary.stability_score:.2f} | "
+            f"| `{summary.probe_id}` | "
+            f"{'yes' if summary.pass_at_k else 'no'} | "
+            f"{'yes' if summary.pass_hat_k else 'no'} | "
+            f"{_fmt_rate(summary.pass_rate)} | "
+            f"{summary.stability_score:.2f} | "
             f"{'yes' if summary.unstable else 'no'} | "
             f"{'yes' if summary.deterministic_failure else 'no'} | "
-            f"{'yes' if summary.aggregate_passed else 'no'} | "
             f"{safe_message} |"
         )
     lines.append("")
@@ -180,13 +199,31 @@ def render_stability_markdown(report: StabilityReport) -> str:
         lines.append("### Unstable probes")
         lines.append("")
         for item in unstable:
-            lines.append(f"- `{item.probe_id}` (score={item.stability_score:.2f})")
+            lines.append(
+                f"- `{item.probe_id}` (score={item.stability_score:.2f}, "
+                f"pass@k={'yes' if item.pass_at_k else 'no'}, "
+                f"pass^k={'yes' if item.pass_hat_k else 'no'})"
+            )
         lines.append("")
     if deterministic:
         lines.append("### Deterministic failures")
         lines.append("")
         for item in deterministic:
             lines.append(f"- `{item.probe_id}`: {item.message}")
+        lines.append("")
+    lines.append("### Per-trial details")
+    lines.append("")
+    for summary in report.summaries:
+        lines.append(f"#### `{summary.probe_id}`")
+        lines.append("")
+        lines.append("| Trial | Passed | Outcome | Selected | Message |")
+        lines.append("| ---: | --- | --- | --- | --- |")
+        for trial in summary.trials:
+            msg = trial.message.replace("|", "\\|")
+            lines.append(
+                f"| {trial.trial_index} | {'yes' if trial.passed else 'no'} | "
+                f"`{trial.outcome.value}` | `{trial.selected_tool or ''}` | {msg} |"
+            )
         lines.append("")
     return "\n".join(lines)
 
