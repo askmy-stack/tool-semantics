@@ -2,6 +2,8 @@
 
 Tool-Semantics separates **transport**, **normalization**, and **compatibility analysis** so the same diff engine can run on static manifests and live MCP servers.
 
+Doc index / vocabulary: [index.md](index.md), [concepts.md](concepts.md).
+
 ## Pipeline
 
 ```mermaid

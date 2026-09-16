@@ -96,6 +96,7 @@
 - [ ] Corpus / mutations / research harness — [#92](https://github.com/askmy-stack/tool-semantics/issues/92)–[#95](https://github.com/askmy-stack/tool-semantics/issues/95) **P2/P3**
 - [ ] Confidence intervals + dev/test/verified split — [#115](https://github.com/askmy-stack/tool-semantics/issues/115), [#116](https://github.com/askmy-stack/tool-semantics/issues/116) **P3**
 - [ ] DX: init/doctor/lint/audit/generate-probes — [#96](https://github.com/askmy-stack/tool-semantics/issues/96)–[#98](https://github.com/askmy-stack/tool-semantics/issues/98) **P2**
+- [x] Docs / README capture+eval positioning — [#101](https://github.com/askmy-stack/tool-semantics/issues/101) **P2**
 - [x] ROADMAP/PLAN + agent execution spec — [#103](https://github.com/askmy-stack/tool-semantics/issues/103)
 - [ ] Apply GitHub priority labels — [#118](https://github.com/askmy-stack/tool-semantics/issues/118) **P0**
 - Operational spec: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md)

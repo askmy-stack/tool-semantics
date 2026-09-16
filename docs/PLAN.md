@@ -1,7 +1,9 @@
 # Course of action (Milestones 7+)
 
 Primary operational spec: [AGENT_EXECUTION.md](AGENT_EXECUTION.md).  
-Product positioning: behavioral regression for MCP / AI-agent interfaces.
+Product positioning: **schema-valid ≠ agent-safe** — behavioral regression for
+MCP / AI-agent interfaces ([simple-explanation.md](simple-explanation.md),
+[concepts.md](concepts.md), [index.md](index.md)).
 
 Shipped through **v0.4.0**: Milestones 0–6 (structural detect, stdio/SSE capture,
 offline + library model probes, policy, Action, adapters).
@@ -12,6 +14,9 @@ offline + library model probes, policy, Action, adapters).
 2. **Simplify** — `eval` as primary UX (#57, #58, #76, #77, #78, #61)
 3. **Evaluate real behavior** — collision/rename, traces, discovery, safety/output (#79–#91)
 4. **Prove** — corpus, mutations, research harness, DX/docs (#92–#103)
+
+Beginner UX today: **capture → compare + probe**. Unified `eval` (#76) becomes
+the single evaluate entrypoint when merged.
 
 ## Immediate next PRs
 
