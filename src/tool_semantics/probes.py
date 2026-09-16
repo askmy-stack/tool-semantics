@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from tool_semantics.models import InterfaceSnapshot, RiskLevel, ToolContract
 from tool_semantics.runner import ModelRunner, RunnerConfig, RunnerMetadata
+from tool_semantics.state_verifier import FinalStateResult, verify_final_state
 
 
 class ProbeKind(StrEnum):
@@ -33,12 +34,20 @@ class Probe(BaseModel):
     approved_by: str | None = None
     # Optional expected argument keys/values for model-backed validity checks.
     expected_arguments: dict[str, Any] = Field(default_factory=dict)
+    # Final-state expectations (#105) — trajectory-independent key/value checks.
+    expected_state: dict[str, Any] = Field(default_factory=dict)
+    # Optional fixture observed state for offline/deterministic tests (never from live tools).
+    observed_state: dict[str, Any] | None = None
 
 
 class ProbeResult(BaseModel):
     probe_id: str
     passed: bool
     message: str
+    tool_call_correct: bool | None = None
+    trajectory_correct: bool | None = None
+    final_state_correct: bool | None = None
+    final_state: FinalStateResult | None = None
 
 
 class ProbeReport(BaseModel):
@@ -73,6 +82,10 @@ class ModelProbeResult(BaseModel):
     arguments_valid: bool | None = None
     risk_compliant: bool | None = None
     confirmation_compliant: bool | None = None
+    tool_call_correct: bool | None = None
+    trajectory_correct: bool | None = None
+    final_state_correct: bool | None = None
+    final_state: FinalStateResult | None = None
     runner: RunnerMetadata | None = None
     trial_index: int | None = None
 
@@ -130,13 +143,71 @@ class StabilityReport(BaseModel):
     runner: RunnerMetadata | None = None
 
 
-def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeReport:
+def _resolve_observed_state(
+    probe: Probe,
+    observed_states: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    if observed_states is not None and probe.id in observed_states:
+        return dict(observed_states[probe.id])
+    if probe.observed_state is not None:
+        return dict(probe.observed_state)
+    return None
+
+
+def _apply_final_state(
+    *,
+    probe: Probe,
+    structural_passed: bool,
+    tool_call_correct: bool | None,
+    message: str,
+    observed_states: dict[str, dict[str, Any]] | None,
+) -> ProbeResult:
+    """Attach trajectory-independent final-state scores to an offline result."""
+    trajectory_correct = tool_call_correct
+    if not probe.expected_state:
+        return ProbeResult(
+            probe_id=probe.id,
+            passed=structural_passed,
+            message=message,
+            tool_call_correct=tool_call_correct,
+            trajectory_correct=trajectory_correct,
+            final_state_correct=None,
+            final_state=None,
+        )
+    observed = _resolve_observed_state(probe, observed_states)
+    final_state = verify_final_state(probe.expected_state, observed)
+    passed = structural_passed and final_state.passed
+    if not final_state.passed:
+        message = f"{message} Final state: {final_state.message}"
+    elif structural_passed:
+        message = f"{message} Final state: {final_state.message}"
+    return ProbeResult(
+        probe_id=probe.id,
+        passed=passed,
+        message=message,
+        tool_call_correct=tool_call_correct,
+        trajectory_correct=trajectory_correct,
+        final_state_correct=final_state.passed,
+        final_state=final_state,
+    )
+
+
+def evaluate_probes(
+    snapshot: InterfaceSnapshot,
+    probes: list[Probe],
+    *,
+    observed_states: dict[str, dict[str, Any]] | None = None,
+) -> ProbeReport:
     """Evaluate probes against a snapshot without calling an LLM.
 
     Positive probes require the expected tool (and optional required params) to exist.
     Negative probes fail if a forbidden tool is present.
     Ambiguous probes pass when the expected tool exists but record a soft warning message
     if additional candidate tools share overlapping description tokens.
+
+    When ``expected_state`` is set, final-state correctness is scored separately from
+    tool-call / trajectory correctness (#105). Supply observed state via
+    ``observed_states[probe.id]`` or ``probe.observed_state`` (fixture-only).
     """
     tools = {tool.name: tool for tool in snapshot.tools}
     report = ProbeReport()
@@ -144,39 +215,44 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
         if probe.kind == ProbeKind.NEGATIVE:
             present = [name for name in probe.forbidden_tools if name in tools]
             if present:
-                report.results.append(
-                    ProbeResult(
-                        probe_id=probe.id,
-                        passed=False,
-                        message=f"Forbidden tools still present: {', '.join(present)}",
-                    )
+                result = _apply_final_state(
+                    probe=probe,
+                    structural_passed=False,
+                    tool_call_correct=False,
+                    message=f"Forbidden tools still present: {', '.join(present)}",
+                    observed_states=observed_states,
                 )
             else:
-                report.results.append(
-                    ProbeResult(
-                        probe_id=probe.id,
-                        passed=True,
-                        message="Forbidden tools absent.",
-                    )
+                result = _apply_final_state(
+                    probe=probe,
+                    structural_passed=True,
+                    tool_call_correct=True,
+                    message="Forbidden tools absent.",
+                    observed_states=observed_states,
                 )
+            report.results.append(result)
             continue
 
         if probe.expected_tool is None:
             report.results.append(
-                ProbeResult(
-                    probe_id=probe.id,
-                    passed=False,
+                _apply_final_state(
+                    probe=probe,
+                    structural_passed=False,
+                    tool_call_correct=False,
                     message="Probe is missing expected_tool.",
+                    observed_states=observed_states,
                 )
             )
             continue
         tool = tools.get(probe.expected_tool)
         if tool is None:
             report.results.append(
-                ProbeResult(
-                    probe_id=probe.id,
-                    passed=False,
+                _apply_final_state(
+                    probe=probe,
+                    structural_passed=False,
+                    tool_call_correct=False,
                     message=f"Expected tool '{probe.expected_tool}' not found.",
+                    observed_states=observed_states,
                 )
             )
             continue
@@ -187,10 +263,12 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
         ]
         if missing:
             report.results.append(
-                ProbeResult(
-                    probe_id=probe.id,
-                    passed=False,
+                _apply_final_state(
+                    probe=probe,
+                    structural_passed=False,
+                    tool_call_correct=False,
                     message=f"Missing required params on '{tool.name}': {', '.join(missing)}",
+                    observed_states=observed_states,
                 )
             )
             continue
@@ -199,10 +277,12 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
                 allowed = RiskLevel(probe.max_risk)
             except ValueError:
                 report.results.append(
-                    ProbeResult(
-                        probe_id=probe.id,
-                        passed=False,
+                    _apply_final_state(
+                        probe=probe,
+                        structural_passed=False,
+                        tool_call_correct=False,
                         message=f"Invalid max_risk '{probe.max_risk}'.",
+                        observed_states=observed_states,
                     )
                 )
                 continue
@@ -214,13 +294,15 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
             }
             if rank[tool.risk] > rank[allowed]:
                 report.results.append(
-                    ProbeResult(
-                        probe_id=probe.id,
-                        passed=False,
+                    _apply_final_state(
+                        probe=probe,
+                        structural_passed=False,
+                        tool_call_correct=False,
                         message=(
                             f"Tool '{tool.name}' risk '{tool.risk}' exceeds "
                             f"max_risk '{probe.max_risk}'."
                         ),
+                        observed_states=observed_states,
                     )
                 )
                 continue
@@ -250,7 +332,15 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
                     collisions.append(other.name)
             if collisions:
                 message += f" Potential selection collisions: {', '.join(collisions)}."
-        report.results.append(ProbeResult(probe_id=probe.id, passed=True, message=message))
+        report.results.append(
+            _apply_final_state(
+                probe=probe,
+                structural_passed=True,
+                tool_call_correct=True,
+                message=message,
+                observed_states=observed_states,
+            )
+        )
     return report
 
 
@@ -322,6 +412,29 @@ def _confirmation_compliant(tool: ToolContract | None, probe: Probe) -> bool | N
     return tool.risk in {RiskLevel.EXTERNAL_WRITE, RiskLevel.DESTRUCTIVE, RiskLevel.UNKNOWN}
 
 
+def _enrich_model_result_final_state(
+    result: ModelProbeResult,
+    probe: Probe,
+    observed_states: dict[str, dict[str, Any]] | None,
+) -> ModelProbeResult:
+    tool_call_correct = result.tool_selection_correct
+    if result.arguments_valid is not None and tool_call_correct is not None:
+        tool_call_correct = tool_call_correct and result.arguments_valid
+    trajectory_correct = result.tool_selection_correct
+    result.tool_call_correct = tool_call_correct
+    result.trajectory_correct = trajectory_correct
+    if not probe.expected_state or result.outcome == ModelProbeOutcome.SKIPPED:
+        return result
+    observed = _resolve_observed_state(probe, observed_states)
+    final_state = verify_final_state(probe.expected_state, observed)
+    result.final_state = final_state
+    result.final_state_correct = final_state.passed
+    if not final_state.passed:
+        result.passed = False
+        result.message = f"{result.message} Final state: {final_state.message}"
+    return result
+
+
 def evaluate_probes_with_model(
     snapshot: InterfaceSnapshot,
     probes: list[Probe],
@@ -330,6 +443,7 @@ def evaluate_probes_with_model(
     config: RunnerConfig | None = None,
     require_approval: bool = True,
     trial_index: int | None = None,
+    observed_states: dict[str, dict[str, Any]] | None = None,
 ) -> ModelProbeReport:
     """Opt-in model-backed probe execution (#44). Offline evaluate_probes remains default."""
     cfg = config or RunnerConfig()
@@ -365,29 +479,37 @@ def evaluate_probes_with_model(
             )
         except Exception as exc:  # noqa: BLE001 — surface as failed_evaluation
             report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=False,
-                    message=f"Model runner failed: {exc}",
-                    outcome=ModelProbeOutcome.FAILED_EVALUATION,
-                    error=str(exc),
-                    runner=getattr(runner, "metadata", None),
-                    trial_index=trial_index,
+                _enrich_model_result_final_state(
+                    ModelProbeResult(
+                        probe_id=probe.id,
+                        passed=False,
+                        message=f"Model runner failed: {exc}",
+                        outcome=ModelProbeOutcome.FAILED_EVALUATION,
+                        error=str(exc),
+                        runner=getattr(runner, "metadata", None),
+                        trial_index=trial_index,
+                    ),
+                    probe,
+                    observed_states,
                 )
             )
             continue
 
         if not completion.tool_calls:
             report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=probe.kind == ProbeKind.NEGATIVE,
-                    message="Model returned no tool call.",
-                    outcome=ModelProbeOutcome.MISSING_DATA,
-                    tool_selection_correct=probe.kind == ProbeKind.NEGATIVE,
-                    arguments_valid=None,
-                    runner=completion.metadata,
-                    trial_index=trial_index,
+                _enrich_model_result_final_state(
+                    ModelProbeResult(
+                        probe_id=probe.id,
+                        passed=probe.kind == ProbeKind.NEGATIVE,
+                        message="Model returned no tool call.",
+                        outcome=ModelProbeOutcome.MISSING_DATA,
+                        tool_selection_correct=probe.kind == ProbeKind.NEGATIVE,
+                        arguments_valid=None,
+                        runner=completion.metadata,
+                        trial_index=trial_index,
+                    ),
+                    probe,
+                    observed_states,
                 )
             )
             continue
@@ -400,23 +522,29 @@ def evaluate_probes_with_model(
         if probe.kind == ProbeKind.NEGATIVE:
             forbidden_hit = selected in probe.forbidden_tools
             report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=not forbidden_hit,
-                    message=(
-                        f"Model selected forbidden tool '{selected}'."
-                        if forbidden_hit
-                        else f"Model avoided forbidden tools (selected '{selected}')."
+                _enrich_model_result_final_state(
+                    ModelProbeResult(
+                        probe_id=probe.id,
+                        passed=not forbidden_hit,
+                        message=(
+                            f"Model selected forbidden tool '{selected}'."
+                            if forbidden_hit
+                            else f"Model avoided forbidden tools (selected '{selected}')."
+                        ),
+                        selected_tool=selected,
+                        arguments=arguments,
+                        outcome=ModelProbeOutcome.OK,
+                        tool_selection_correct=not forbidden_hit,
+                        arguments_valid=_validate_arguments(tool, arguments, probe)
+                        if tool
+                        else False,
+                        risk_compliant=_risk_compliant(tool, probe),
+                        confirmation_compliant=_confirmation_compliant(tool, probe),
+                        runner=completion.metadata,
+                        trial_index=trial_index,
                     ),
-                    selected_tool=selected,
-                    arguments=arguments,
-                    outcome=ModelProbeOutcome.OK,
-                    tool_selection_correct=not forbidden_hit,
-                    arguments_valid=_validate_arguments(tool, arguments, probe) if tool else False,
-                    risk_compliant=_risk_compliant(tool, probe),
-                    confirmation_compliant=_confirmation_compliant(tool, probe),
-                    runner=completion.metadata,
-                    trial_index=trial_index,
+                    probe,
+                    observed_states,
                 )
             )
             continue
@@ -432,24 +560,28 @@ def evaluate_probes_with_model(
             checks.append(confirm_ok)
         passed = all(checks)
         report.results.append(
-            ModelProbeResult(
-                probe_id=probe.id,
-                passed=passed,
-                message=(
-                    f"Selected '{selected}' with args {arguments}."
-                    if passed
-                    else f"Selection/args mismatch: selected '{selected}', "
-                    f"expected '{probe.expected_tool}', args={arguments}."
+            _enrich_model_result_final_state(
+                ModelProbeResult(
+                    probe_id=probe.id,
+                    passed=passed,
+                    message=(
+                        f"Selected '{selected}' with args {arguments}."
+                        if passed
+                        else f"Selection/args mismatch: selected '{selected}', "
+                        f"expected '{probe.expected_tool}', args={arguments}."
+                    ),
+                    selected_tool=selected,
+                    arguments=arguments,
+                    outcome=ModelProbeOutcome.OK,
+                    tool_selection_correct=selection_ok,
+                    arguments_valid=args_ok,
+                    risk_compliant=risk_ok,
+                    confirmation_compliant=confirm_ok,
+                    runner=completion.metadata,
+                    trial_index=trial_index,
                 ),
-                selected_tool=selected,
-                arguments=arguments,
-                outcome=ModelProbeOutcome.OK,
-                tool_selection_correct=selection_ok,
-                arguments_valid=args_ok,
-                risk_compliant=risk_ok,
-                confirmation_compliant=confirm_ok,
-                runner=completion.metadata,
-                trial_index=trial_index,
+                probe,
+                observed_states,
             )
         )
     return report
@@ -514,6 +646,7 @@ def run_probe_trials(
     config: RunnerConfig | None = None,
     require_approval: bool = True,
     seed: int | None = None,
+    observed_states: dict[str, dict[str, Any]] | None = None,
 ) -> StabilityReport:
     """Repeat model-backed probes and summarize stability (#47)."""
     if trial_count < 1:
@@ -535,6 +668,7 @@ def run_probe_trials(
             config=trial_config,
             require_approval=require_approval,
             trial_index=index,
+            observed_states=observed_states,
         )
         for result in trial_report.results:
             all_results.append(result)

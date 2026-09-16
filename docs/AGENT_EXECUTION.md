@@ -38,7 +38,7 @@ Positioning (use consistently):
 | Protocol/capability diff | Not compared | #75 | P1 |
 | Probes in CLI/CI | Library only | #57, #58 | P0 |
 | Unified `eval` | Missing | #76 | P0 |
-| Final-state verifier | Missing | #105 | P1 |
+| Final-state verifier | Probe `expected_state` + axes | #105 | P1 |
 | pass@k / pass^k | Library trials only | #106 | P1 |
 | `behavior.*` codes | Deferred | #61 | P1 |
 | Semantic collision / rename / embeddings | Token Jaccard only | #79, #80, #117 | P1/P2 |

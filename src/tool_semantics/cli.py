@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -428,6 +428,16 @@ def probe(
             help="Allow model-backed runs without approved=true (not recommended).",
         ),
     ] = False,
+    observed_states: Annotated[
+        Path | None,
+        typer.Option(
+            "--observed-states",
+            help=(
+                "JSON map of probe_id → observed final state for #105 verification "
+                "(fixture/offline; never auto-executes tools)."
+            ),
+        ),
+    ] = None,
     json_output: Annotated[
         Path | None,
         typer.Option("--json-output", help="Write a JSON probe report."),
@@ -460,19 +470,46 @@ def probe(
         console.print(f"[red]Probe load failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
 
+    observed: dict[str, dict[str, Any]] | None = None
+    if observed_states is not None:
+        if not observed_states.is_file():
+            console.print(f"[red]Observed-states file not found:[/red] {observed_states}")
+            raise typer.Exit(code=2)
+        try:
+            raw_observed = json.loads(observed_states.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            console.print(f"[red]Observed-states load failed:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
+        if not isinstance(raw_observed, dict):
+            console.print("[red]Observed-states must be a JSON object keyed by probe id.[/red]")
+            raise typer.Exit(code=2)
+        observed = {}
+        for key, value in raw_observed.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                console.print("[red]Each observed-states entry must be probe_id → object.[/red]")
+                raise typer.Exit(code=2)
+            observed[key] = value
+
     _log_verbose(verbose, f"Probes={len(probes)} tools={len(snap.tools)} model={use_model}")
 
     if not use_model:
-        report = evaluate_probes(snap, probes)
+        report = evaluate_probes(snap, probes, observed_states=observed)
         table = Table(title=f"Offline probes: {snap.server_name}")
         table.add_column("Probe")
         table.add_column("Passed")
+        table.add_column("Final state")
         table.add_column("Message")
         for result in report.results:
             color = "green" if result.passed else "red"
+            fs = (
+                "n/a"
+                if result.final_state_correct is None
+                else ("yes" if result.final_state_correct else "no")
+            )
             table.add_row(
                 result.probe_id,
                 f"[{color}]{'yes' if result.passed else 'no'}[/]",
+                fs,
                 result.message,
             )
         console.print(table)
@@ -504,6 +541,7 @@ def probe(
             config=cfg,
             require_approval=require_approval,
             seed=seed,
+            observed_states=observed,
         )
         failed = [
             item
@@ -548,6 +586,7 @@ def probe(
         runner,
         config=cfg,
         require_approval=require_approval,
+        observed_states=observed,
     )
     table = Table(title=f"Model-backed probes: {snap.server_name}")
     table.add_column("Probe")
