@@ -24,8 +24,20 @@ TOOLS = [
 
 
 class FakeMcpSseServer:
-    def __init__(self, *, require_auth: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        require_auth: bool = False,
+        hang_without_endpoint: bool = False,
+        empty_endpoint: bool = False,
+        post_fail_auth: bool = False,
+        notify_fail_auth: bool = False,
+    ) -> None:
         self.require_auth = require_auth
+        self.hang_without_endpoint = hang_without_endpoint
+        self.empty_endpoint = empty_endpoint
+        self.post_fail_auth = post_fail_auth
+        self.notify_fail_auth = notify_fail_auth
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self.base_url = ""
@@ -33,6 +45,10 @@ class FakeMcpSseServer:
 
     def start(self) -> None:
         require_auth = self.require_auth
+        hang_without_endpoint = self.hang_without_endpoint
+        empty_endpoint = self.empty_endpoint
+        post_fail_auth = self.post_fail_auth
+        notify_fail_auth = self.notify_fail_auth
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
@@ -63,15 +79,28 @@ class FakeMcpSseServer:
                 self.send_header("Cache-Control", "no-cache")
                 self.send_header("Connection", "keep-alive")
                 self.end_headers()
+                if hang_without_endpoint:
+                    while getattr(self.server, "is_running", False):
+                        threading.Event().wait(0.1)
+                    return
                 host, port = self.server.server_address  # type: ignore[attr-defined]
-                endpoint = f"http://{host}:{port}/message"
-                self.wfile.write(f"event: endpoint\ndata: {endpoint}\n\n".encode())
+                if empty_endpoint:
+                    self.wfile.write(b"event: endpoint\ndata: \n\n")
+                else:
+                    endpoint = f"http://{host}:{port}/message"
+                    self.wfile.write(f"event: endpoint\ndata: {endpoint}\n\n".encode())
                 self.wfile.flush()
                 # Hold the SSE connection open until server shutdown.
                 while getattr(self.server, "is_running", False):
                     threading.Event().wait(0.1)
 
             def do_POST(self) -> None:  # noqa: N802
+                if post_fail_auth and self.headers.get("Authorization") != "Bearer secret-token":
+                    self.send_response(401)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"unauthorized"}')
+                    return
                 if self._unauthorized():
                     return
                 if urlparse(self.path).path != "/message":
@@ -89,6 +118,12 @@ class FakeMcpSseServer:
                 method = message.get("method")
                 request_id = message.get("id")
                 if method == "notifications/initialized":
+                    if notify_fail_auth:
+                        self.send_response(401)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"error":"unauthorized"}')
+                        return
                     self.send_response(202)
                     self.end_headers()
                     return

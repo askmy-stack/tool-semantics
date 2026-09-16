@@ -178,3 +178,46 @@ def test_capture_mcp_remote_auth_does_not_fallback() -> None:
 def test_capture_mcp_remote_total_failure() -> None:
     with pytest.raises(McpCaptureError, match=r"\[unsupported_server\].*Remote MCP capture failed"):
         capture_mcp_remote("http://127.0.0.1:9/no-mcp-here", timeout=1.0)
+
+
+def test_capture_mcp_sse_timeout_waiting_for_endpoint() -> None:
+    server = FakeMcpSseServer(hang_without_endpoint=True)
+    server.start()
+    try:
+        with pytest.raises(McpCaptureError, match="[Tt]imeout|endpoint"):
+            capture_mcp_sse(server.sse_url, timeout=0.3)
+    finally:
+        server.stop()
+
+
+def test_capture_mcp_sse_empty_endpoint_event() -> None:
+    server = FakeMcpSseServer(empty_endpoint=True)
+    server.start()
+    try:
+        with pytest.raises(McpCaptureError, match="empty URL|endpoint"):
+            capture_mcp_sse(server.sse_url, timeout=2.0)
+    finally:
+        server.stop()
+
+
+def test_capture_mcp_sse_post_auth_failure() -> None:
+    server = FakeMcpSseServer(post_fail_auth=True)
+    server.start()
+    try:
+        with pytest.raises(McpCaptureError, match="POST failed with HTTP 401"):
+            capture_mcp_sse(server.sse_url, timeout=5.0)
+    finally:
+        server.stop()
+
+
+def test_capture_mcp_sse_notification_auth_failure() -> None:
+    server = FakeMcpSseServer(notify_fail_auth=True)
+    server.start()
+    try:
+        with pytest.raises(
+            McpCaptureError,
+            match="notification.*401|authentication/HTTP error 401",
+        ):
+            capture_mcp_sse(server.sse_url, timeout=5.0)
+    finally:
+        server.stop()
