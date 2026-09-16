@@ -38,6 +38,7 @@ from tool_semantics.report import (
 )
 from tool_semantics.runner import OpenAICompatibleRunner, RunnerConfig
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
+from tool_semantics.scorecard import build_scorecard
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -689,6 +690,7 @@ def compare(
 
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
+        scorecard = build_scorecard(report)
         payload = report.model_dump(mode="json")
         payload["is_compatible"] = report.is_compatible
         payload["counts"] = report.counts_by_severity()
@@ -696,6 +698,7 @@ def compare(
             "fail_at_or_above": release_policy.fail_at_or_above.value,
             "failed": fails_policy,
         }
+        payload["scorecard"] = scorecard.to_json()
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if markdown_output is not None:
         markdown_output.parent.mkdir(parents=True, exist_ok=True)

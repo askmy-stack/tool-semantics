@@ -7,9 +7,19 @@ from typing import Any
 
 from tool_semantics.diff import CompatibilityReport, Severity
 from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
+from tool_semantics.scorecard import (
+    CompatibilityScorecard,
+    build_scorecard,
+    render_scorecard_markdown,
+)
 
 
-def render_markdown(report: CompatibilityReport) -> str:
+def render_markdown(
+    report: CompatibilityReport,
+    *,
+    scorecard: CompatibilityScorecard | None = None,
+    include_scorecard: bool = True,
+) -> str:
     """Render a GitHub-friendly Markdown compatibility report."""
     status = "compatible" if report.is_compatible else "breaking"
     counts = report.counts_by_severity()
@@ -29,20 +39,24 @@ def render_markdown(report: CompatibilityReport) -> str:
     if not report.changes:
         lines.append("_No structural changes detected._")
         lines.append("")
-        return "\n".join(lines)
-
-    lines.extend(
-        [
-            "| Severity | Code | Subject | Change |",
-            "| --- | --- | --- | --- |",
-        ]
-    )
-    for change in report.changes:
-        message = change.message.replace("|", "\\|")
-        lines.append(
-            f"| `{change.severity.value}` | `{change.code}` | `{change.subject}` | {message} |"
+    else:
+        lines.extend(
+            [
+                "| Severity | Code | Subject | Change |",
+                "| --- | --- | --- | --- |",
+            ]
         )
-    lines.append("")
+        for change in report.changes:
+            message = change.message.replace("|", "\\|")
+            lines.append(
+                f"| `{change.severity.value}` | `{change.code}` | `{change.subject}` | {message} |"
+            )
+        lines.append("")
+
+    if include_scorecard:
+        card = scorecard if scorecard is not None else build_scorecard(report)
+        lines.append(render_scorecard_markdown(card).rstrip())
+        lines.append("")
     return "\n".join(lines)
 
 
