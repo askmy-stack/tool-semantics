@@ -1,0 +1,35 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "prompts-resources-demo",
+  "serverVersion": "1.0.0",
+  "tools": [],
+  "prompts": [
+    {
+      "name": "summarize",
+      "description": "Summarize the given text.",
+      "arguments": [
+        {"name": "text", "description": "Input text", "required": true},
+        {"name": "style", "description": "Summary style", "required": false}
+      ]
+    },
+    {
+      "name": "draft_reply",
+      "description": "Draft a reply to a message.",
+      "arguments": [{"name": "message", "required": true}]
+    }
+  ],
+  "resources": [
+    {
+      "uri": "memo://notes",
+      "name": "notes",
+      "description": "Personal notes",
+      "mimeType": "text/plain"
+    },
+    {
+      "uri": "file:///tmp/readme.md",
+      "name": "readme",
+      "description": "Project readme",
+      "mimeType": "text/markdown"
+    }
+  ]
+}

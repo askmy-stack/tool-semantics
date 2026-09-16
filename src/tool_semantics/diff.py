@@ -4,7 +4,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
+from tool_semantics.models import (
+    InterfaceSnapshot,
+    PromptContract,
+    ResourceContract,
+    ToolContract,
+    ToolParameter,
+)
 
 
 class Severity(StrEnum):
@@ -383,6 +389,328 @@ def _compare_tool_pair(
             )
 
 
+def _prompt_argument_map(prompt: PromptContract) -> dict[str, dict[str, object]]:
+    result: dict[str, dict[str, object]] = {}
+    for argument in prompt.arguments:
+        name = argument.get("name")
+        if isinstance(name, str):
+            result[name] = argument
+    return result
+
+
+def _prompt_similarity(left: PromptContract, right: PromptContract) -> float:
+    left_args = {str(arg.get("name")) for arg in left.arguments if arg.get("name")}
+    right_args = {str(arg.get("name")) for arg in right.arguments if arg.get("name")}
+    arg_score = _jaccard(left_args, right_args)
+    desc_score = _jaccard(_token_set(left.description), _token_set(right.description))
+    name_score = _jaccard(
+        _token_set(left.name.replace("_", " ")), _token_set(right.name.replace("_", " "))
+    )
+    return (0.5 * arg_score) + (0.3 * desc_score) + (0.2 * name_score)
+
+
+def _detect_prompt_renames(
+    removed: dict[str, PromptContract],
+    added: dict[str, PromptContract],
+    *,
+    threshold: float = 0.55,
+) -> list[tuple[str, str]]:
+    pairs: list[tuple[float, str, str]] = []
+    for old_name, old_prompt in removed.items():
+        for new_name, new_prompt in added.items():
+            score = _prompt_similarity(old_prompt, new_prompt)
+            if score >= threshold:
+                pairs.append((score, old_name, new_name))
+    pairs.sort(reverse=True)
+    matched_old: set[str] = set()
+    matched_new: set[str] = set()
+    renames: list[tuple[str, str]] = []
+    for _, old_name, new_name in pairs:
+        if old_name in matched_old or new_name in matched_new:
+            continue
+        matched_old.add(old_name)
+        matched_new.add(new_name)
+        renames.append((old_name, new_name))
+    return renames
+
+
+def _compare_prompt_pair(
+    report: CompatibilityReport,
+    name: str,
+    old_prompt: PromptContract,
+    new_prompt: PromptContract,
+) -> None:
+    if old_prompt.description != new_prompt.description:
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="prompt.description_changed",
+                subject=name,
+                message="Prompt description changed.",
+            )
+        )
+    old_args = _prompt_argument_map(old_prompt)
+    new_args = _prompt_argument_map(new_prompt)
+    for arg_name in sorted(old_args.keys() - new_args.keys()):
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="prompt.argument.removed",
+                subject=f"{name}.{arg_name}",
+                message=f"Prompt argument '{arg_name}' was removed from '{name}'.",
+            )
+        )
+    for arg_name in sorted(new_args.keys() - old_args.keys()):
+        required = bool(new_args[arg_name].get("required"))
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING if required else Severity.INFO,
+                code=("prompt.argument.added_required" if required else "prompt.argument.added"),
+                subject=f"{name}.{arg_name}",
+                message=(
+                    f"{'Required' if required else 'Optional'} prompt argument "
+                    f"'{arg_name}' was added to '{name}'."
+                ),
+            )
+        )
+    for arg_name in sorted(old_args.keys() & new_args.keys()):
+        old_arg = old_args[arg_name]
+        new_arg = new_args[arg_name]
+        subject = f"{name}.{arg_name}"
+        old_required = bool(old_arg.get("required"))
+        new_required = bool(new_arg.get("required"))
+        if not old_required and new_required:
+            report.changes.append(
+                Change(
+                    severity=Severity.BREAKING,
+                    code="prompt.argument.became_required",
+                    subject=subject,
+                    message=f"Prompt argument '{arg_name}' became required.",
+                )
+            )
+        old_desc = old_arg.get("description")
+        new_desc = new_arg.get("description")
+        if old_desc != new_desc:
+            report.changes.append(
+                Change(
+                    severity=Severity.WARNING,
+                    code="prompt.argument.description_changed",
+                    subject=subject,
+                    message=f"Description changed for prompt argument '{arg_name}'.",
+                )
+            )
+        # Compare remaining keys excluding name/required/description for structural drift.
+        old_rest = {
+            key: value
+            for key, value in old_arg.items()
+            if key not in {"name", "required", "description"}
+        }
+        new_rest = {
+            key: value
+            for key, value in new_arg.items()
+            if key not in {"name", "required", "description"}
+        }
+        if old_rest != new_rest:
+            report.changes.append(
+                Change(
+                    severity=Severity.BREAKING,
+                    code="prompt.argument.schema_changed",
+                    subject=subject,
+                    message=f"Schema/metadata changed for prompt argument '{arg_name}'.",
+                )
+            )
+
+
+def _diff_prompts(
+    report: CompatibilityReport,
+    baseline: InterfaceSnapshot,
+    candidate: InterfaceSnapshot,
+    *,
+    detect_renames: bool,
+) -> None:
+    before = {prompt.name: prompt for prompt in baseline.prompts}
+    after = {prompt.name: prompt for prompt in candidate.prompts}
+    removed_names = before.keys() - after.keys()
+    added_names = after.keys() - before.keys()
+    renames: list[tuple[str, str]] = []
+    if detect_renames and removed_names and added_names:
+        renames = _detect_prompt_renames(
+            {name: before[name] for name in removed_names},
+            {name: after[name] for name in added_names},
+        )
+    renamed_from = {old for old, _ in renames}
+    renamed_to = {new for _, new in renames}
+
+    for old_name, new_name in renames:
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="prompt.renamed",
+                subject=f"{old_name}->{new_name}",
+                message=(
+                    f"Prompt '{old_name}' appears renamed to '{new_name}' "
+                    "(argument/description similarity heuristic)."
+                ),
+            )
+        )
+        _compare_prompt_pair(report, new_name, before[old_name], after[new_name])
+
+    for name in sorted(removed_names - renamed_from):
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="prompt.removed",
+                subject=name,
+                message=f"Prompt '{name}' was removed.",
+            )
+        )
+    for name in sorted(added_names - renamed_to):
+        report.changes.append(
+            Change(
+                severity=Severity.INFO,
+                code="prompt.added",
+                subject=name,
+                message=f"Prompt '{name}' was added.",
+            )
+        )
+    for name in sorted(before.keys() & after.keys()):
+        _compare_prompt_pair(report, name, before[name], after[name])
+
+
+def _resource_similarity(left: ResourceContract, right: ResourceContract) -> float:
+    name_score = _jaccard(
+        _token_set(left.name.replace("_", " ")), _token_set(right.name.replace("_", " "))
+    )
+    desc_score = _jaccard(_token_set(left.description), _token_set(right.description))
+    left_uri_tokens = _token_set(left.uri.replace("://", " "))
+    right_uri_tokens = _token_set(right.uri.replace("://", " "))
+    uri_score = _jaccard(left_uri_tokens, right_uri_tokens)
+    mime_score = 1.0 if left.mime_type == right.mime_type else 0.0
+    return (0.4 * name_score) + (0.3 * desc_score) + (0.2 * uri_score) + (0.1 * mime_score)
+
+
+def _detect_resource_renames(
+    removed: dict[str, ResourceContract],
+    added: dict[str, ResourceContract],
+    *,
+    threshold: float = 0.55,
+) -> list[tuple[str, str]]:
+    pairs: list[tuple[float, str, str]] = []
+    for old_uri, old_resource in removed.items():
+        for new_uri, new_resource in added.items():
+            score = _resource_similarity(old_resource, new_resource)
+            if score >= threshold:
+                pairs.append((score, old_uri, new_uri))
+    pairs.sort(reverse=True)
+    matched_old: set[str] = set()
+    matched_new: set[str] = set()
+    renames: list[tuple[str, str]] = []
+    for _, old_uri, new_uri in pairs:
+        if old_uri in matched_old or new_uri in matched_new:
+            continue
+        matched_old.add(old_uri)
+        matched_new.add(new_uri)
+        renames.append((old_uri, new_uri))
+    return renames
+
+
+def _compare_resource_pair(
+    report: CompatibilityReport,
+    subject: str,
+    old_resource: ResourceContract,
+    new_resource: ResourceContract,
+) -> None:
+    # URI identity is the map key; relocated URIs are reported as resource.renamed.
+    if old_resource.name != new_resource.name:
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="resource.name_changed",
+                subject=subject,
+                message=(
+                    f"Resource name changed from '{old_resource.name}' to '{new_resource.name}'."
+                ),
+            )
+        )
+    if old_resource.description != new_resource.description:
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="resource.description_changed",
+                subject=subject,
+                message="Resource description changed.",
+            )
+        )
+    if old_resource.mime_type != new_resource.mime_type:
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="resource.mime_type_changed",
+                subject=subject,
+                message=(
+                    f"Resource MIME type changed from '{old_resource.mime_type}' "
+                    f"to '{new_resource.mime_type}'."
+                ),
+            )
+        )
+
+
+def _diff_resources(
+    report: CompatibilityReport,
+    baseline: InterfaceSnapshot,
+    candidate: InterfaceSnapshot,
+    *,
+    detect_renames: bool,
+) -> None:
+    before = {resource.uri: resource for resource in baseline.resources}
+    after = {resource.uri: resource for resource in candidate.resources}
+    removed_uris = before.keys() - after.keys()
+    added_uris = after.keys() - before.keys()
+    renames: list[tuple[str, str]] = []
+    if detect_renames and removed_uris and added_uris:
+        renames = _detect_resource_renames(
+            {uri: before[uri] for uri in removed_uris},
+            {uri: after[uri] for uri in added_uris},
+        )
+    renamed_from = {old for old, _ in renames}
+    renamed_to = {new for _, new in renames}
+
+    for old_uri, new_uri in renames:
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="resource.renamed",
+                subject=f"{old_uri}->{new_uri}",
+                message=(
+                    f"Resource '{old_uri}' appears relocated to '{new_uri}' "
+                    "(name/description similarity heuristic)."
+                ),
+            )
+        )
+        _compare_resource_pair(report, new_uri, before[old_uri], after[new_uri])
+
+    for uri in sorted(removed_uris - renamed_from):
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="resource.removed",
+                subject=uri,
+                message=f"Resource '{uri}' was removed.",
+            )
+        )
+    for uri in sorted(added_uris - renamed_to):
+        report.changes.append(
+            Change(
+                severity=Severity.INFO,
+                code="resource.added",
+                subject=uri,
+                message=f"Resource '{uri}' was added.",
+            )
+        )
+    for uri in sorted(before.keys() & after.keys()):
+        _compare_resource_pair(report, uri, before[uri], after[uri])
+
+
 def compare_snapshots(
     baseline: InterfaceSnapshot,
     candidate: InterfaceSnapshot,
@@ -442,4 +770,7 @@ def compare_snapshots(
 
     for name in sorted(before.keys() & after.keys()):
         _compare_tool_pair(report, name, before[name], after[name])
+
+    _diff_prompts(report, baseline, candidate, detect_renames=detect_renames)
+    _diff_resources(report, baseline, candidate, detect_renames=detect_renames)
     return report
