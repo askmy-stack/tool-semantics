@@ -1,0 +1,17 @@
+{
+  "probes": [
+    {
+      "id": "read-readme",
+      "intent": "Read README.md",
+      "kind": "positive",
+      "expected_tool": "read_file",
+      "required_params": ["path"]
+    },
+    {
+      "id": "list-root",
+      "intent": "List the current directory",
+      "kind": "positive",
+      "expected_tool": "list_directory"
+    }
+  ]
+}

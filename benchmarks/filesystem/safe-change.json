@@ -1,0 +1,40 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "filesystem-corpus",
+  "serverVersion": "1.0.1",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read a file from the workspace.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "encoding": {"type": "string", "default": "utf-8"}
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "write_file",
+      "description": "Write contents to a file.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+        "required": ["path", "content"]
+      }
+    },
+    {
+      "name": "list_directory",
+      "description": "List files in a directory.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "default": "."}},
+        "required": []
+      }
+    }
+  ]
+}

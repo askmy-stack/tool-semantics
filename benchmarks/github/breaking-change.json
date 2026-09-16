@@ -1,0 +1,17 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "github-corpus",
+  "serverVersion": "2.0.0",
+  "tools": [
+    {
+      "name": "create_issue",
+      "description": "Create a new GitHub issue.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+        "required": ["title", "body"]
+      }
+    }
+  ]
+}
