@@ -38,6 +38,7 @@ from tool_semantics.report import (
 )
 from tool_semantics.runner import OpenAICompatibleRunner, RunnerConfig
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
+from tool_semantics.suggest import adapter_suggestion_to_json, suggest_adapter
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -702,3 +703,73 @@ def compare(
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("suggest-adapter")
+def suggest_adapter_cmd(
+    baseline: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Baseline snapshot JSON from `capture`."),
+    ],
+    candidate: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Candidate snapshot JSON from `capture`."),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Write reviewable adapter suggestion JSON (never auto-applied).",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log suggestion steps to stderr."),
+    ] = False,
+) -> None:
+    """Suggest a MigrationAdapter draft from rename / schema diffs (#62).
+
+    Output is reviewable JSON only — CI must not apply it without an explicit
+    human opt-in step outside this command.
+    """
+    _require_snapshot_file(baseline, "Baseline")
+    _require_snapshot_file(candidate, "Candidate")
+    try:
+        baseline_snap = read_snapshot(baseline)
+        candidate_snap = read_snapshot(candidate)
+        report = compare_snapshots(baseline_snap, candidate_snap)
+        suggestion = suggest_adapter(baseline_snap, candidate_snap, report=report)
+    except (ManifestError, FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Adapter suggestion failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    _log_verbose(
+        verbose,
+        f"Aliases={len(suggestion.adapter.aliases)} "
+        f"arg_maps={len(suggestion.adapter.arguments)} "
+        f"enums={len(suggestion.adapter.enums)} notes={len(suggestion.notes)}",
+    )
+    console.print(
+        f"Suggested adapter draft: "
+        f"{len(suggestion.adapter.aliases)} alias(es), "
+        f"{len(suggestion.adapter.arguments)} argument map(s), "
+        f"{len(suggestion.adapter.enums)} enum map(s). "
+        f"[yellow]auto_apply={suggestion.auto_apply}[/yellow] — review before use."
+    )
+    if suggestion.notes:
+        table = Table(title="Suggestion notes")
+        table.add_column("Confidence")
+        table.add_column("Subject")
+        table.add_column("Message")
+        for note in suggestion.notes:
+            table.add_row(note.confidence.value, note.subject, note.message)
+        console.print(table)
+
+    payload = adapter_suggestion_to_json(suggestion)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        console.print(f"Wrote reviewable draft to {output}")
+    else:
+        console.print_json(data=payload)
