@@ -10,6 +10,10 @@ from rich.console import Console
 from rich.table import Table
 
 from tool_semantics import __version__
+from tool_semantics.behavior_codes import (
+    changes_from_model_probe_report,
+    changes_from_stability_report,
+)
 from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.mcp_capture import (
@@ -534,7 +538,12 @@ def probe(
         )
         if json_output is not None:
             json_output.parent.mkdir(parents=True, exist_ok=True)
-            json_output.write_text(render_stability_json(stability), encoding="utf-8")
+            payload = json.loads(render_stability_json(stability))
+            payload["behavior_changes"] = [
+                change.model_dump(mode="json")
+                for change in changes_from_stability_report(stability)
+            ]
+            json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         if markdown_output is not None:
             markdown_output.parent.mkdir(parents=True, exist_ok=True)
             markdown_output.write_text(render_stability_markdown(stability), encoding="utf-8")
@@ -571,6 +580,9 @@ def probe(
         )
     console.print(table)
     console.print(f"Result: [bold]{'PASS' if model_report.passed else 'FAIL'}[/bold]")
+    behavior_changes = changes_from_model_probe_report(model_report)
+    if behavior_changes:
+        console.print(f"Behavior changes: {len(behavior_changes)}")
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -578,6 +590,7 @@ def probe(
             "passed": model_report.passed,
             "opt_in": model_report.opt_in,
             "results": [item.model_dump(mode="json") for item in model_report.results],
+            "behavior_changes": [change.model_dump(mode="json") for change in behavior_changes],
         }
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if markdown_output is not None:
