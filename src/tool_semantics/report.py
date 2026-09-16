@@ -6,6 +6,11 @@ import json
 from typing import Any
 
 from tool_semantics.diff import CompatibilityReport, Severity
+from tool_semantics.efficiency import (  # noqa: F401 — re-export for report consumers (#114)
+    EfficiencyReport,
+    append_efficiency_section,
+    render_efficiency_markdown,
+)
 from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
 
 

@@ -88,7 +88,7 @@
 - [ ] Output-schema compatibility — [#89](https://github.com/askmy-stack/tool-semantics/issues/89) **P1**
 - [ ] Prompt / resource / extension diffs — [#90](https://github.com/askmy-stack/tool-semantics/issues/90), [#91](https://github.com/askmy-stack/tool-semantics/issues/91) **P1/P2**
 - [ ] Integrity monitoring — [#113](https://github.com/askmy-stack/tool-semantics/issues/113) **P2**
-- [ ] Efficiency regression — [#114](https://github.com/askmy-stack/tool-semantics/issues/114) **P2**
+- [x] Efficiency regression — [#114](https://github.com/askmy-stack/tool-semantics/issues/114) **P2**
 
 ## Milestone 12+ — Prove (benchmarks, research, DX)
 - [ ] Difficulty / messiness + horizon — [#109](https://github.com/askmy-stack/tool-semantics/issues/109), [#110](https://github.com/askmy-stack/tool-semantics/issues/110) **P2**
