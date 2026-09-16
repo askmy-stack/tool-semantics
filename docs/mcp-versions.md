@@ -16,6 +16,10 @@ Negotiated `protocolVersion` is stored in snapshot metadata as
 `protocol_version`, along with `transport` and `server_capabilities`. Auth
 header **values** are never persisted.
 
+`tool-semantics compare` / `eval` diff these fields when present on both
+snapshots (`protocol.version_changed`, `transport.changed`,
+`capability.added` / `removed` / `changed`) — see [change-codes.md](change-codes.md).
+
 ## Unsupported
 
 Versions outside the table (for example experimental `2026-07-28` drafts) fail

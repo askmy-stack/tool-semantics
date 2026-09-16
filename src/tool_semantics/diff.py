@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +38,149 @@ class CompatibilityReport(BaseModel):
         for change in self.changes:
             counts[change.severity.value] += 1
         return counts
+
+
+_CAPABILITY_IMPACT = {
+    "tools": "tool listing / calling workflows may break",
+    "prompts": "prompt workflows may break",
+    "resources": "resource listing / reading workflows may break",
+    "resources/subscribe": "resource subscription workflows may break",
+    "logging": "server logging / notifications may be unavailable",
+    "completions": "argument completion workflows may break",
+    "experimental": "experimental MCP features may be unavailable",
+}
+
+
+def _capability_keys(capabilities: dict[str, Any]) -> set[str]:
+    return {key for key in capabilities if isinstance(key, str)}
+
+
+def _capability_impact(name: str) -> str:
+    return _CAPABILITY_IMPACT.get(name, "dependent client workflows may be affected")
+
+
+def _meta_str(snapshot: InterfaceSnapshot, key: str) -> str | None:
+    value = snapshot.metadata.get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _meta_capabilities(snapshot: InterfaceSnapshot) -> dict[str, Any] | None:
+    raw = snapshot.metadata.get("server_capabilities")
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    return {}
+
+
+def _compare_protocol_layer(
+    report: CompatibilityReport,
+    baseline: InterfaceSnapshot,
+    candidate: InterfaceSnapshot,
+) -> None:
+    """Diff protocol version, transport, and server capabilities (#75).
+
+    Manifest-only snapshots without these metadata keys are skipped so file
+    manifests stay comparable without false protocol noise.
+    """
+    base_version = _meta_str(baseline, "protocol_version")
+    cand_version = _meta_str(candidate, "protocol_version")
+    if base_version is not None and cand_version is not None and base_version != cand_version:
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="protocol.version_changed",
+                subject="protocol_version",
+                message=(
+                    f"MCP protocol version changed from '{base_version}' to '{cand_version}'. "
+                    "Clients negotiating the baseline version may fail initialize."
+                ),
+            )
+        )
+
+    base_transport = _meta_str(baseline, "transport") or (
+        baseline.protocol if baseline.protocol != "manifest" else None
+    )
+    cand_transport = _meta_str(candidate, "transport") or (
+        candidate.protocol if candidate.protocol != "manifest" else None
+    )
+    if (
+        base_transport is not None
+        and cand_transport is not None
+        and base_transport != cand_transport
+    ):
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="transport.changed",
+                subject="transport",
+                message=(
+                    f"Transport changed from '{base_transport}' to '{cand_transport}'. "
+                    "Connection setup / URL shape may need client updates."
+                ),
+            )
+        )
+
+    # Top-level snapshot.protocol (e.g. mcp-stdio vs mcp-http) when transport
+    # metadata is absent on both sides but protocol labels differ.
+    if (
+        _meta_str(baseline, "transport") is None
+        and _meta_str(candidate, "transport") is None
+        and baseline.protocol != candidate.protocol
+        and {baseline.protocol, candidate.protocol} != {"manifest"}
+    ):
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="transport.changed",
+                subject="protocol",
+                message=(
+                    f"Capture protocol surface changed from '{baseline.protocol}' "
+                    f"to '{candidate.protocol}'."
+                ),
+            )
+        )
+
+    base_caps = _meta_capabilities(baseline)
+    cand_caps = _meta_capabilities(candidate)
+    if base_caps is None or cand_caps is None:
+        return
+
+    base_keys = _capability_keys(base_caps)
+    cand_keys = _capability_keys(cand_caps)
+    for name in sorted(base_keys - cand_keys):
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="capability.removed",
+                subject=name,
+                message=(f"Server capability '{name}' was removed; {_capability_impact(name)}."),
+            )
+        )
+    for name in sorted(cand_keys - base_keys):
+        report.changes.append(
+            Change(
+                severity=Severity.INFO,
+                code="capability.added",
+                subject=name,
+                message=f"Server capability '{name}' was added.",
+            )
+        )
+    for name in sorted(base_keys & cand_keys):
+        if base_caps.get(name) != cand_caps.get(name):
+            report.changes.append(
+                Change(
+                    severity=Severity.WARNING,
+                    code="capability.changed",
+                    subject=name,
+                    message=(
+                        f"Server capability '{name}' configuration changed; "
+                        f"{_capability_impact(name)}."
+                    ),
+                )
+            )
 
 
 def _parameter_map(tool: ToolContract) -> dict[str, ToolParameter]:
@@ -393,6 +537,7 @@ def compare_snapshots(
         baseline=baseline.server_version or baseline.server_name,
         candidate=candidate.server_version or candidate.server_name,
     )
+    _compare_protocol_layer(report, baseline, candidate)
     before = {tool.name: tool for tool in baseline.tools}
     after = {tool.name: tool for tool in candidate.tools}
 
