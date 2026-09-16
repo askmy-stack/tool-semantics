@@ -19,8 +19,9 @@ The first implementation adds three complementary storage paths:
 
 Object storage and a centralized snapshot registry are explicitly out of scope
 for the core library. They require credentials, retention policy, access
-control, and an API that this package does not own. A design-only follow-up is
-tracked in [#63](https://github.com/askmy-stack/tool-semantics/issues/63).
+control, and an API that this package does not own. Design-only follow-up:
+[ADR: optional centralized snapshot registry](../../adr-optional-snapshot-registry.md)
+([#63](https://github.com/askmy-stack/tool-semantics/issues/63)).
 
 Related docs: [adr-live-mcp-capture.md](../../adr-live-mcp-capture.md) (stdio +
 SSE capture), [downstream.md](../../downstream.md) (consumer handoff).
