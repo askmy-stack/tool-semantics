@@ -762,12 +762,14 @@ def fuzz_format(
     ] = False,
 ) -> None:
     """Fuzz meaning-preserving schema formatting; warn if routing accuracy shifts (#111)."""
+    from collections.abc import Callable
+
     from tool_semantics.format_fuzz import (
         render_format_sensitivity_markdown,
         run_format_sensitivity,
         scripted_fake_factory,
     )
-    from tool_semantics.runner import ModelCompletion, RunnerMetadata, ToolCallRequest
+    from tool_semantics.runner import ModelCompletion, ModelRunner, RunnerMetadata, ToolCallRequest
 
     _require_snapshot_file(snapshot, "Snapshot")
     if not probes_file.is_file():
@@ -792,6 +794,7 @@ def fuzz_format(
         f"snapshot={snapshot} probes={len(probes)} fake={fake} variants={variants}",
     )
 
+    factory: Callable[[], ModelRunner]
     if fake:
         # Script stable selections from expected_tool when present.
         responses: list[ModelCompletion] = []
@@ -808,13 +811,15 @@ def fuzz_format(
     else:
         live = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
 
-        def factory() -> object:
+        def _live_factory() -> ModelRunner:
             return live
+
+        factory = _live_factory
 
     report = run_format_sensitivity(
         snap,
         probes,
-        factory,  # type: ignore[arg-type]
+        factory,
         threshold=threshold,
         variants_per_transform=variants,
         require_approval=not allow_unapproved,
