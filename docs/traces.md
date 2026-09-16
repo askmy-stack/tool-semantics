@@ -93,6 +93,7 @@ Generate the current schema with:
 ```python
 from tool_semantics.traces import trace_json_schema
 import json
+
 print(json.dumps(trace_json_schema(), indent=2))
 ```
 
