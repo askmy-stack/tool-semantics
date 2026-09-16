@@ -27,6 +27,7 @@ from tool_semantics.probes import (
     run_probe_trials,
 )
 from tool_semantics.provenance import write_provenance
+from tool_semantics.replay import ReplayMode, render_replay_markdown, replay_traces
 from tool_semantics.report import (
     render_markdown,
     render_model_probe_report_markdown,
@@ -38,6 +39,7 @@ from tool_semantics.report import (
 )
 from tool_semantics.runner import OpenAICompatibleRunner, RunnerConfig
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
+from tool_semantics.traces import TraceValidationError, load_traces
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -701,4 +703,92 @@ def compare(
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
     if fails_policy:
+        raise typer.Exit(code=1)
+
+
+@app.command("replay")
+def replay_command(
+    traces_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Trace JSON/YAML file, JSON array, or directory of traces.",
+        ),
+    ],
+    candidate: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Candidate snapshot JSON from `capture`."),
+    ],
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            help="Replay mode: offline (deterministic schema checks) or model (re-selection).",
+        ),
+    ] = "offline",
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write a JSON replay report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write a Markdown replay report."),
+    ] = None,
+    model_name: Annotated[
+        str | None,
+        typer.Option("--model", help="Model id for --mode model."),
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option("--api-key", help="API key for --mode model."),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option("--base-url", help="OpenAI-compatible base URL for --mode model."),
+    ] = None,
+) -> None:
+    """Replay saved agent traces against a candidate snapshot (exit 1 on fail/changed)."""
+    _require_snapshot_file(candidate, "Candidate")
+    try:
+        replay_mode = ReplayMode(mode.strip().lower())
+    except ValueError as exc:
+        console.print("[red]Invalid --mode.[/red] Use offline or model.")
+        raise typer.Exit(code=2) from exc
+    try:
+        traces = load_traces(traces_path)
+        snapshot = read_snapshot(candidate)
+    except (ManifestError, TraceValidationError, FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Replay failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    if not traces:
+        console.print("[red]No traces found to replay.[/red]")
+        raise typer.Exit(code=2)
+
+    runner = None
+    if replay_mode is ReplayMode.MODEL:
+        runner = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
+
+    report = replay_traces(traces, snapshot, mode=replay_mode, runner=runner)
+    counts = report.counts
+    table = Table(title=f"Trace replay ({replay_mode.value}) → {report.candidate}")
+    for heading in ("Trace", "Status", "Detail"):
+        table.add_column(heading)
+    for item in report.results:
+        label = item.trace_id or item.intent[:40]
+        table.add_row(label, item.status.value, item.message)
+    console.print(table)
+    console.print(
+        f"Counts: ok={counts['ok']} changed={counts['changed']} failed={counts['failed']}"
+    )
+
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        payload = report.model_dump(mode="json")
+        payload["counts"] = counts
+        payload["passed"] = report.passed
+        json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_replay_markdown(report), encoding="utf-8")
+
+    if not report.passed:
         raise typer.Exit(code=1)

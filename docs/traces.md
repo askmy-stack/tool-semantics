@@ -98,7 +98,25 @@ print(json.dumps(trace_json_schema(), indent=2))
 
 Or import `AgentTrace.model_json_schema()` directly.
 
-## Non-goals (v1)
+## Replay (#84)
 
-- OpenTelemetry import/export (future adapter)
-- Replay execution (see #84)
+```bash
+# Deterministic: tool still exists + prior args still validate
+tool-semantics replay examples/traces/github_search_issues.json .tool-semantics/candidate.json
+
+# Batch a directory
+tool-semantics replay examples/traces/ .tool-semantics/candidate.json --markdown-output replay.md
+
+# Opt-in model re-selection (requires API key)
+tool-semantics replay examples/traces/github_search_issues.json candidate.json --mode model
+```
+
+| Exit | Meaning |
+| --- | --- |
+| `0` | All traces `ok` |
+| `1` | Any trace `failed` or `changed` |
+| `2` | Usage / validation / missing credentials |
+
+Reports label each step as **`DETERMINISTIC`** (schema/offline) or **`MODEL-BASED`**
+(re-selection drift). Model mode still surfaces deterministic failures first when
+the recorded tool is missing or arguments no longer validate.

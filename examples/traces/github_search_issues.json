@@ -5,7 +5,6 @@
   "selected_tool": "search_issues",
   "arguments": {
     "query": "MCP authentication",
-    "repo": "askmy-stack/tool-semantics",
     "state": "open"
   },
   "outcome": "success",

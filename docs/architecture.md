@@ -56,6 +56,7 @@ flowchart TB
 | **Models** (`models.py`) | Normalized server metadata and tool contracts (`InterfaceSnapshot`) |
 | **Diff engine** (`diff.py`) | Stable change codes + severity levels |
 | **Traces** (`traces.py`) | Versioned agent tool-call traces for capture/replay (#83 / #84) |
+| **Replay** (`replay.py`) | Offline + opt-in model replay of traces against a candidate snapshot |
 | **Probes** (`probes.py`) | Offline + opt-in model-backed probes, metrics, and stability trials |
 | **Model runner** (`runner.py`) | Provider-neutral runner interface + OpenAI-compatible HTTP adapter (no required SDK) |
 | **Release policy** (`policy.py`) | Configurable CI gate thresholds for severity |
