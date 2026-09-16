@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from tool_semantics.models import InterfaceSnapshot, RiskLevel, ToolContract
+from tool_semantics.redact import is_secret_key, redact_mapping
 from tool_semantics.runner import ModelRunner, RunnerConfig, RunnerMetadata
 
 
@@ -255,10 +256,21 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
 
 
 def _tools_as_openai_schemas(snapshot: InterfaceSnapshot) -> list[dict[str, Any]]:
+    """Build provider tool schemas; omit/redact secret-like fields (#66)."""
     tools: list[dict[str, Any]] = []
     for tool in snapshot.tools:
-        properties = {parameter.name: parameter.schema_ for parameter in tool.parameters}
-        required = [parameter.name for parameter in tool.parameters if parameter.required]
+        properties: dict[str, Any] = {}
+        for parameter in tool.parameters:
+            if is_secret_key(parameter.name):
+                # Do not send secret-named parameters to the provider at all.
+                continue
+            properties[parameter.name] = parameter.schema_
+        safe_properties = redact_mapping(properties) if properties else {}
+        required = [
+            parameter.name
+            for parameter in tool.parameters
+            if parameter.required and not is_secret_key(parameter.name)
+        ]
         tools.append(
             {
                 "type": "function",
@@ -267,7 +279,7 @@ def _tools_as_openai_schemas(snapshot: InterfaceSnapshot) -> list[dict[str, Any]
                     "description": tool.description,
                     "parameters": {
                         "type": "object",
-                        "properties": properties,
+                        "properties": safe_properties,
                         "required": required,
                     },
                 },
