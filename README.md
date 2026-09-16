@@ -74,7 +74,14 @@ pip install -e ".[dev]"
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics capture examples/github_server_v2.json -o .tool-semantics/v2.json
 
-# Compare — exits 1 on breaking/critical changes
+# Primary workflow: unified eval (structural + semantic + optional probes)
+tool-semantics eval \
+  --baseline .tool-semantics/v1.json \
+  --candidate .tool-semantics/v2.json \
+  --probes examples/probes/github_v1_offline.json \
+  --markdown-output .tool-semantics/eval.md
+
+# Advanced: structural-only compare
 tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json \
   --markdown-output .tool-semantics/report.md
 ```
@@ -144,6 +151,10 @@ tool-semantics capture-mcp -o snap.json \
 tool-semantics probe <snapshot.json> --probes <probes.json|yaml> \
   [--model] [--trials N] [--seed N] \
   [--json-output report.json] [--markdown-output report.md]
+tool-semantics eval --baseline <baseline.json> --candidate <candidate.json> \
+  [--probes probes.json] [--policy compatible|strict|…] \
+  [--json-output eval.json] [--markdown-output eval.md] \
+  [--config .tool-semantics.toml] [-v]
 tool-semantics compare <baseline.json> <candidate.json> \
   [--json-output report.json] \
   [--markdown-output report.md] \
@@ -153,6 +164,7 @@ tool-semantics compare <baseline.json> <candidate.json> \
   [-v]
 ```
 
+- **`eval`** is the primary beginner workflow: one report covering Structural, Semantic, Behavioral, Safety, Stability, and FINAL RESULT (see [docs/eval.md](docs/eval.md)).
 - `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
 - `--config` loads ignore / policy / optional probe-gate rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
 - `capture-mcp` speaks MCP JSON-RPC over stdio, Streamable HTTP, or legacy SSE; secrets-like keys are redacted by default. Bare URLs auto-detect HTTP then SSE — see [docs/mcp-versions.md](docs/mcp-versions.md).

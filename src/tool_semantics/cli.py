@@ -12,6 +12,7 @@ from rich.table import Table
 from tool_semantics import __version__
 from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
+from tool_semantics.eval_report import build_eval_report, render_eval_markdown
 from tool_semantics.mcp_capture import (
     McpCaptureError,
     capture_mcp_http,
@@ -928,4 +929,198 @@ def compare(
             encoding="utf-8",
         )
     if fails_policy:
+        raise typer.Exit(code=1)
+
+
+@app.command("eval")
+def eval_cmd(
+    baseline: Annotated[
+        Path,
+        typer.Option(
+            "--baseline",
+            help="Baseline snapshot JSON from `capture` / `capture-mcp`.",
+            dir_okay=False,
+        ),
+    ],
+    candidate: Annotated[
+        Path,
+        typer.Option(
+            "--candidate",
+            help="Candidate snapshot JSON from `capture` / `capture-mcp`.",
+            dir_okay=False,
+        ),
+    ],
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write a unified JSON eval report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write a unified Markdown eval report."),
+    ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to `.tool-semantics.toml` (default: look in cwd).",
+        ),
+    ] = None,
+    policy: Annotated[
+        str | None,
+        typer.Option(
+            "--policy",
+            help=(
+                "Release policy override: compatible|strict|critical-only|permissive "
+                "(default: config policy or breaking)."
+            ),
+        ),
+    ] = None,
+    probes: Annotated[
+        Path | None,
+        typer.Option(
+            "--probes",
+            help="Probe suite JSON/YAML for behavioral / stability sections.",
+        ),
+    ] = None,
+    probe_mode: Annotated[
+        str | None,
+        typer.Option(
+            "--probe-mode",
+            help="Probe mode: offline (default) or model.",
+        ),
+    ] = None,
+    probe_target: Annotated[
+        str | None,
+        typer.Option(
+            "--probe-target",
+            help="Which snapshot(s) to probe: candidate|baseline|both.",
+        ),
+    ] = None,
+    probe_trials: Annotated[
+        int | None,
+        typer.Option(
+            "--probe-trials",
+            help="Model-backed stability trials (implies model mode when >1).",
+        ),
+    ] = None,
+    probe_seed: Annotated[
+        int | None,
+        typer.Option("--probe-seed", help="Base seed for model-backed probe trials."),
+    ] = None,
+    allow_unapproved_probes: Annotated[
+        bool | None,
+        typer.Option(
+            "--allow-unapproved-probes/--no-allow-unapproved-probes",
+            help="Allow model-backed probes without approved=true (not recommended).",
+        ),
+    ] = None,
+    model_name: Annotated[
+        str | None,
+        typer.Option("--model-name", help="Model id for model-backed probes."),
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option("--api-key", help="API key for model-backed probes."),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option("--base-url", help="OpenAI-compatible base URL for probes."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log eval steps to stderr."),
+    ] = False,
+) -> None:
+    """Unified evaluation: structural + semantic + probes + safety + policy.
+
+    Primary beginner workflow after `capture`. Advanced commands (`compare`,
+    `probe`) remain available. Exit codes match compare: 0 pass, 1 policy/probe
+    fail, 2 input error.
+    """
+    _require_snapshot_file(baseline, "Baseline")
+    _require_snapshot_file(candidate, "Candidate")
+    _log_verbose(verbose, f"Eval baseline {baseline.resolve()}")
+    _log_verbose(verbose, f"Eval candidate {candidate.resolve()}")
+    try:
+        config_data = load_config(config)
+        release_policy = policy_from_name(policy) if policy else config_data.policy
+        baseline_snap = read_snapshot(baseline)
+        candidate_snap = read_snapshot(candidate)
+        report = apply_ignore_rules(
+            compare_snapshots(baseline_snap, candidate_snap),
+            config_data,
+        )
+        probe_settings = _merge_probe_settings(
+            config_data.probes,
+            probes_file=probes,
+            probe_mode=probe_mode,
+            probe_target=probe_target,
+            probe_trials=probe_trials,
+            probe_seed=probe_seed,
+            allow_unapproved=allow_unapproved_probes,
+        )
+    except (ManifestError, FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Eval failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    probe_gate = _run_compare_probe_gate(
+        settings=probe_settings,
+        baseline_snap=baseline_snap,
+        candidate_snap=candidate_snap,
+        verbose=verbose,
+        model_name=model_name,
+        api_key=api_key,
+        base_url=base_url,
+    )
+    eval_report = build_eval_report(
+        report,
+        release_policy=release_policy,
+        probe_gate=probe_gate,
+    )
+
+    _log_verbose(
+        verbose,
+        f"Eval final={eval_report.final_result} "
+        f"structural_fail={eval_report.structural_failed} "
+        f"probe_fail={eval_report.probe_failed}",
+    )
+
+    table = Table(title=f"Eval: {report.baseline} → {report.candidate}")
+    table.add_column("Section")
+    table.add_column("Breaking+")
+    table.add_column("Warnings")
+    table.add_row(
+        "Structural",
+        str(eval_report.structural.breaking_count),
+        str(eval_report.structural.warning_count),
+    )
+    table.add_row(
+        "Semantic",
+        str(eval_report.semantic.breaking_count),
+        str(eval_report.semantic.warning_count),
+    )
+    table.add_row(
+        "Safety",
+        str(eval_report.safety.breaking_count),
+        str(eval_report.safety.warning_count),
+    )
+    console.print(table)
+    if probe_gate.enabled:
+        console.print(
+            f"Behavioral: [bold]{'PASS' if not probe_gate.failed else 'FAIL'}[/bold] "
+            f"(mode={probe_gate.settings.get('mode')})"
+        )
+    console.print(f"FINAL RESULT: [bold]{eval_report.final_result}[/bold]")
+
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(eval_report.to_json(), indent=2) + "\n",
+            encoding="utf-8",
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_eval_markdown(eval_report), encoding="utf-8")
+    if not eval_report.passed:
         raise typer.Exit(code=1)
