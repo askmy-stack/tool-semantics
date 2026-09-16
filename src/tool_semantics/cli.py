@@ -12,6 +12,7 @@ from rich.table import Table
 from tool_semantics import __version__
 from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
+from tool_semantics.generate_probes import generate_probe_drafts, write_probe_drafts
 from tool_semantics.mcp_capture import (
     McpCaptureError,
     capture_mcp_http,
@@ -702,3 +703,49 @@ def compare(
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("generate-probes")
+def generate_probes_cmd(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Snapshot JSON from `capture` / `capture-mcp`."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Write draft probes JSON or YAML (extension selects format).",
+        ),
+    ],
+    include_negative: Annotated[
+        bool,
+        typer.Option("--negative/--no-negative", help="Include negative drafts."),
+    ] = True,
+    include_ambiguous: Annotated[
+        bool,
+        typer.Option("--ambiguous/--no-ambiguous", help="Include ambiguous drafts."),
+    ] = True,
+) -> None:
+    """Generate human-reviewable probe drafts from a snapshot (#98).
+
+    Drafts always have approved=false. Never auto-trust them for model-backed runs.
+    """
+    _require_snapshot_file(snapshot, "Generate-probes")
+    try:
+        snap = read_snapshot(snapshot)
+        drafts = generate_probe_drafts(
+            snap,
+            include_negative=include_negative,
+            include_ambiguous=include_ambiguous,
+        )
+        write_probe_drafts(drafts, output)
+    except (ManifestError, ValueError, OSError) as exc:
+        console.print(f"[red]generate-probes failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    console.print(
+        f"Wrote {len(drafts)} draft probe(s) to {output} "
+        "(all approved=false — review before --model)."
+    )

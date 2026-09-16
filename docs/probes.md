@@ -31,6 +31,19 @@ Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
+## Generating draft probes (#98)
+
+Scaffold reviewable drafts from a snapshot (always `approved: false`):
+
+```bash
+tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
+tool-semantics generate-probes .tool-semantics/v1.json -o examples/probes/drafts.yaml
+```
+
+Generation is **deterministic** (templates). Optional LLM enrichment is not the
+default; any future enrichment must still ship with `approved: false` until a
+human reviews intents and expectations.
+
 ## Approval workflow
 
 1. Author a `Probe` with `intent`, expectations (`expected_tool`,
