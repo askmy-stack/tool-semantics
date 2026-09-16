@@ -1,0 +1,12 @@
+{
+  "case_id": "capability_drop",
+  "kind": "capability_drop",
+  "expected_codes": [
+    "capability.removed"
+  ],
+  "expected_subjects": [
+    "prompts"
+  ],
+  "notes": "Dropped server capability 'prompts'",
+  "dropped_capability": "prompts"
+}

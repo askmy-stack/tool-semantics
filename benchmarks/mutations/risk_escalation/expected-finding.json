@@ -1,0 +1,12 @@
+{
+  "case_id": "risk_escalation",
+  "kind": "risk_escalation",
+  "expected_codes": [
+    "tool.risk_changed"
+  ],
+  "expected_subjects": [
+    "create_issue"
+  ],
+  "notes": "Escalated risk on create_issue \u2192 destructive",
+  "dropped_capability": null
+}

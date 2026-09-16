@@ -702,3 +702,77 @@ def compare(
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("mutate")
+def mutate_cmd(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(help="Baseline manifest or snapshot JSON to mutate."),
+    ],
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Fixed seed for the CI operator subset."),
+    ] = 0,
+    corpus: Annotated[
+        Path | None,
+        typer.Option(
+            "--corpus",
+            help="Evaluate benchmarks/mutations-style folders instead of seeding.",
+        ),
+    ] = None,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write JSON detection metrics."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write Markdown detection metrics."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log mutation steps to stderr."),
+    ] = False,
+) -> None:
+    """Apply seeded mutations and report precision/recall detection metrics (#93)."""
+    from tool_semantics.mutations import (
+        render_detection_metrics_markdown,
+        run_mutation_corpus,
+        run_seeded_mutations,
+    )
+    from tool_semantics.scanner import read_snapshot
+
+    if corpus is not None:
+        if not corpus.is_dir():
+            console.print(f"[red]Mutation corpus not found:[/red] {corpus}")
+            raise typer.Exit(code=2)
+        _log_verbose(verbose, f"mutation corpus={corpus}")
+        metrics = run_mutation_corpus(corpus)
+    else:
+        if not snapshot.is_file():
+            console.print(f"[red]Snapshot/manifest not found:[/red] {snapshot}")
+            raise typer.Exit(code=2)
+        try:
+            # Prefer snapshot JSON; fall back to manifest capture.
+            try:
+                snap = read_snapshot(snapshot)
+            except ManifestError:
+                snap = capture_manifest(snapshot)
+        except (ManifestError, FileNotFoundError, ValueError, OSError) as exc:
+            console.print(f"[red]mutate load failed:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
+        _log_verbose(verbose, f"tools={len(snap.tools)} seed={seed}")
+        metrics = run_seeded_mutations(snap, seed=seed)
+
+    console.print(render_detection_metrics_markdown(metrics))
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(metrics.model_dump(mode="json"), indent=2) + "\n",
+            encoding="utf-8",
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_detection_metrics_markdown(metrics), encoding="utf-8")
+    if not metrics.passed:
+        raise typer.Exit(code=1)

@@ -1,0 +1,12 @@
+{
+  "case_id": "remove_tool",
+  "kind": "remove_tool",
+  "expected_codes": [
+    "tool.removed"
+  ],
+  "expected_subjects": [
+    "create_issue"
+  ],
+  "notes": "Removed tool create_issue",
+  "dropped_capability": null
+}
