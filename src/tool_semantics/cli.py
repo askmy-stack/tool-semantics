@@ -27,6 +27,12 @@ from tool_semantics.probes import (
     run_probe_trials,
 )
 from tool_semantics.provenance import write_provenance
+from tool_semantics.quality import (
+    audit_snapshot,
+    lint_snapshot,
+    render_audit_markdown,
+    render_lint_markdown,
+)
 from tool_semantics.report import (
     render_markdown,
     render_model_probe_report_markdown,
@@ -701,4 +707,114 @@ def compare(
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
     if fails_policy:
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def lint(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Snapshot JSON from `capture` / `capture-mcp`."),
+    ],
+    fail_on_warning: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-warning",
+            help="Exit 1 on warnings as well as errors (default: errors only).",
+        ),
+    ] = False,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write lint findings as JSON."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write a Markdown lint report."),
+    ] = None,
+) -> None:
+    """Lint tool names, descriptions, schema mentions, and risk consistency (#97)."""
+    _require_snapshot_file(snapshot, "Lint")
+    try:
+        snap = read_snapshot(snapshot)
+        report = lint_snapshot(snap)
+    except (ManifestError, ValueError) as exc:
+        console.print(f"[red]Lint failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    table = Table(title="Tool lint")
+    for heading in ("Severity", "Code", "Subject", "Message"):
+        table.add_column(heading)
+    for item in report.findings:
+        table.add_row(item.severity.value, item.code, item.subject, item.message)
+    console.print(table if report.findings else "[green]No lint findings.[/green]")
+    console.print(
+        f"Errors={report.error_count} warnings={report.warning_count} "
+        f"(fail_on_warning={fail_on_warning})"
+    )
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_lint_markdown(report), encoding="utf-8")
+    if report.should_fail(fail_on_warning=fail_on_warning):
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def audit(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Snapshot JSON from `capture` / `capture-mcp`."),
+    ],
+    fail_on_warning: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-warning",
+            help="Exit 1 on warnings as well as errors (default: errors only).",
+        ),
+    ] = False,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write audit report as JSON."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write a Markdown audit report."),
+    ] = None,
+) -> None:
+    """Audit server-wide quality and list top ambiguous tool pairs (#97)."""
+    _require_snapshot_file(snapshot, "Audit")
+    try:
+        snap = read_snapshot(snapshot)
+        report = audit_snapshot(snap)
+    except (ManifestError, ValueError) as exc:
+        console.print(f"[red]Audit failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    console.print(
+        f"Tools={report.tool_count} missing_desc={report.missing_description_count} "
+        f"vague={report.vague_description_count} unknown_risk={report.unknown_risk_count}"
+    )
+    if report.ambiguous_pairs:
+        table = Table(title="Top ambiguous pairs")
+        table.add_column("Left")
+        table.add_column("Right")
+        table.add_column("Score")
+        for pair in report.ambiguous_pairs:
+            table.add_row(pair.left, pair.right, f"{pair.score:.2f}")
+        console.print(table)
+    else:
+        console.print("[green]No ambiguous pairs above threshold.[/green]")
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_audit_markdown(report), encoding="utf-8")
+    if report.should_fail(fail_on_warning=fail_on_warning):
         raise typer.Exit(code=1)

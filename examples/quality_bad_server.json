@@ -1,0 +1,43 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "quality-bad-demo",
+  "serverVersion": "0.0.1",
+  "tools": [
+    {
+      "name": "fn",
+      "description": "",
+      "risk": "unknown",
+      "inputSchema": {"type": "object", "properties": {}}
+    },
+    {
+      "name": "search_items",
+      "description": "helper",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "find_items",
+      "description": "helper",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "delete_all",
+      "description": "Delete every record permanently. Accepts `account_id` only.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"confirm": {"type": "boolean"}},
+        "required": ["confirm"]
+      }
+    }
+  ]
+}
