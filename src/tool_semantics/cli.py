@@ -12,6 +12,7 @@ from rich.table import Table
 from tool_semantics import __version__
 from tool_semantics.config import apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
+from tool_semantics.doctor import run_doctor
 from tool_semantics.mcp_capture import (
     McpCaptureError,
     capture_mcp_http,
@@ -399,6 +400,47 @@ def init(
     console.print(f"- traces/: {paths.traces}")
     console.print(f"- behaviors: {paths.behaviors}")
     console.print("See docs/project-layout.md for conventions.")
+
+
+@app.command()
+def doctor(
+    path: Annotated[
+        Path | None,
+        typer.Option(
+            "--path",
+            help="Project root to inspect (default: current working directory).",
+        ),
+    ] = None,
+    mcp_endpoint: Annotated[
+        str | None,
+        typer.Option(
+            "--mcp-endpoint",
+            help="Optional HTTP(S) MCP URL for a lightweight reachability check.",
+        ),
+    ] = None,
+) -> None:
+    """Check Python, install, config, layout, baselines, probes, and model env (#96)."""
+    root = (path or Path.cwd()).resolve()
+    report = run_doctor(root, mcp_endpoint=mcp_endpoint)
+    table = Table(title=f"tool-semantics doctor ({report.tool_semantics_version})")
+    table.add_column("Status")
+    table.add_column("Check")
+    table.add_column("Message")
+    style = {"ok": "green", "warning": "yellow", "error": "red"}
+    for check in report.checks:
+        table.add_row(
+            f"[{style[check.status.value]}]{check.status.value}[/]",
+            check.name,
+            check.message,
+        )
+    console.print(table)
+    if report.errors:
+        console.print(f"[red]Doctor found {len(report.errors)} error(s).[/red]")
+        raise typer.Exit(code=1)
+    if report.warnings:
+        console.print(f"[yellow]Doctor completed with {len(report.warnings)} warning(s).[/yellow]")
+        raise typer.Exit(code=0)
+    console.print("[green]Doctor checks passed.[/green]")
 
 
 @app.command()
