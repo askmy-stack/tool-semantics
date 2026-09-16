@@ -33,10 +33,17 @@ def test_detects_likely_tool_rename() -> None:
             )
         ],
     )
+    # Default: rename warning does not suppress removed/added (#80).
     report = compare_snapshots(baseline, candidate)
     assert any(change.code == "tool.renamed" for change in report.changes)
-    assert not any(change.code == "tool.removed" for change in report.changes)
-    assert report.is_compatible  # rename is warning, params unchanged
+    assert any(change.code == "tool.removed" for change in report.changes)
+    assert any(change.code == "tool.added" for change in report.changes)
+    assert not report.is_compatible  # removed is breaking
+
+    collapsed = compare_snapshots(baseline, candidate, collapse_renames=True)
+    assert any(change.code == "tool.renamed" for change in collapsed.changes)
+    assert not any(change.code == "tool.removed" for change in collapsed.changes)
+    assert collapsed.is_compatible  # rename is warning, params unchanged
 
 
 def test_type_widened_and_narrowed() -> None:

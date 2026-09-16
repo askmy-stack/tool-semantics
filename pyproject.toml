@@ -53,6 +53,9 @@ dev = [
   "types-PyYAML>=6,<7",
   "pre-commit>=3.8,<5",
 ]
+# Optional Layer-2 rename/collision embeddings (#80 / #117). No SDK bundled —
+# register a provider via tool_semantics.embeddings.register_provider(...).
+embeddings = []
 
 [project.scripts]
 tool-semantics = "tool_semantics.cli:app"
