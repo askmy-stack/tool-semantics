@@ -64,6 +64,13 @@ probe = Probe(
 | `TOOL_SEMANTICS_MODEL` / `OPENAI_MODEL` | Model id (default `gpt-4o-mini`) |
 | `TOOL_SEMANTICS_BASE_URL` / `OPENAI_BASE_URL` | OpenAI-compatible base URL |
 
+## Integrity (informational by default)
+
+Use [`evaluate_integrity`](integrity.md) to separate functional success from
+legitimate success (`Tests PASS / Integrity FAIL`). Deterministic rules run
+first; findings carry per-item confidence and do not replace functional gates
+unless policy opts in.
+
 ## Safety
 
 - Do not embed secrets in probe intents or expected arguments.
