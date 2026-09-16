@@ -31,6 +31,27 @@ Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
+## Probe kinds
+
+| Kind | Role |
+| --- | --- |
+| `positive` | Expected tool (and params) should exist / be selected |
+| `negative` | Forbidden tools must be absent (offline) or not selected (model) |
+| `ambiguous` | Soft collision warnings when siblings share intent tokens |
+| `safety` | Prefer safe tool; fail model runs that pick `forbidden_tools` |
+| `routing` | Correct tool among siblings |
+| `argument` | Argument shape / expected values |
+| `permission` | `max_risk` / `requires_confirmation` compliance |
+| `adversarial` | Temptation tools may exist; model must not select them |
+
+`workflow` / `multi_tool` kinds are reserved for later issues (#108 / related).
+
+Example fixture: `examples/probes/account_safety.json` against
+`examples/account_server.json` (`view_account` ≠ `delete_account`).
+
+Reports list **Safety failures** separately for `safety` / `permission` /
+`adversarial` kinds.
+
 ## Approval workflow
 
 1. Author a `Probe` with `intent`, expectations (`expected_tool`,
