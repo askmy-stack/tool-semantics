@@ -21,3 +21,9 @@ subjects = [
 # Fail when any remaining change is at or above this severity.
 # info | warning | breaking | critical | none
 fail_at_or_above = "breaking"
+
+[diff]
+# Confusability / collision detection on the candidate catalog (#79).
+detect_collisions = true
+collision_threshold = 0.55
+# use_embeddings = false

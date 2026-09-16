@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
+
+if TYPE_CHECKING:
+    from tool_semantics.collision import EmbeddingProvider
 
 
 class Severity(StrEnum):
@@ -388,6 +392,9 @@ def compare_snapshots(
     candidate: InterfaceSnapshot,
     *,
     detect_renames: bool = True,
+    detect_collisions: bool = True,
+    collision_threshold: float = 0.55,
+    collision_embeddings: EmbeddingProvider | None = None,
 ) -> CompatibilityReport:
     report = CompatibilityReport(
         baseline=baseline.server_version or baseline.server_name,
@@ -436,10 +443,49 @@ def compare_snapshots(
                 severity=Severity.INFO,
                 code="tool.added",
                 subject=name,
-                message=(f"Tool '{name}' was added; behavioral collision testing is pending."),
+                message=f"Tool '{name}' was added.",
             )
         )
 
     for name in sorted(before.keys() & after.keys()):
         _compare_tool_pair(report, name, before[name], after[name])
+
+    if detect_collisions and after:
+        from tool_semantics.collision import collision_clusters
+        from tool_semantics.collision import detect_collisions as find_collisions
+
+        pairs = find_collisions(
+            list(after.values()),
+            threshold=collision_threshold,
+            embeddings=collision_embeddings,
+        )
+        for pair in pairs:
+            report.changes.append(
+                Change(
+                    severity=Severity.WARNING,
+                    code="tool.collision",
+                    subject=f"{pair.left}~{pair.right}",
+                    message=(
+                        f"TOOL COLLISION WARNING: '{pair.left}' and '{pair.right}' "
+                        f"have confusability score {pair.score:.2f} "
+                        f"(layer={pair.layer}, threshold={collision_threshold:.2f})."
+                    ),
+                )
+            )
+        for cluster in sorted(
+            (c for c in collision_clusters(pairs) if len(c) > 2),
+            key=lambda members: sorted(members),
+        ):
+            members = ", ".join(sorted(cluster))
+            report.changes.append(
+                Change(
+                    severity=Severity.WARNING,
+                    code="tool.collision",
+                    subject="~".join(sorted(cluster)),
+                    message=(
+                        f"TOOL COLLISION WARNING: confusable cluster {{{members}}} "
+                        f"(threshold={collision_threshold:.2f})."
+                    ),
+                )
+            )
     return report
