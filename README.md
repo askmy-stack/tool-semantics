@@ -141,6 +141,9 @@ tool-semantics capture-mcp -o snap.json --http https://example.com/mcp
 tool-semantics capture-mcp -o snap.json --sse https://example.com/sse
 tool-semantics capture-mcp -o snap.json \
   [--provenance-output snap.provenance.json] -- python my_mcp_server.py
+tool-semantics probe <snapshot.json> --probes <probes.json|yaml> \
+  [--model] [--trials N] [--seed N] \
+  [--json-output report.json] [--markdown-output report.md]
 tool-semantics compare <baseline.json> <candidate.json> \
   [--json-output report.json] \
   [--markdown-output report.md] \
@@ -151,6 +154,7 @@ tool-semantics compare <baseline.json> <candidate.json> \
 - `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
 - `--config` loads ignore rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
 - `capture-mcp` speaks MCP JSON-RPC over stdio, Streamable HTTP, or legacy SSE; secrets-like keys are redacted by default. Bare URLs auto-detect HTTP then SSE — see [docs/mcp-versions.md](docs/mcp-versions.md).
+- `probe` runs offline behavioral probes by default; `--model` / `--trials` opt into model-backed evaluation (approved probes + API key) — see [docs/probes.md](docs/probes.md).
 
 ### Approved baselines and provenance
 

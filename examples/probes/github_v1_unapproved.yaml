@@ -1,0 +1,13 @@
+probes:
+  - id: search-open-issues
+    intent: Find open issues in the repository
+    kind: positive
+    expected_tool: search_issues
+    required_params: [query]
+    approved: false
+  - id: create-issue-unapproved
+    intent: Create a new issue titled hello
+    kind: positive
+    expected_tool: create_issue
+    required_params: [title]
+    approved: false

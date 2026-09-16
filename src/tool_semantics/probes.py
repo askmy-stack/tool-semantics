@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -613,6 +614,65 @@ def run_probe_trials(
         metrics=compute_probe_metrics(all_results),
         runner=runner_meta,
     )
+
+
+def load_probes(path: Path) -> list[Probe]:
+    """Load probes from a JSON or YAML file.
+
+    Accepted shapes:
+    - a list of probe objects
+    - an object with a ``probes`` list
+    """
+    text = path.read_text(encoding="utf-8")
+    suffix = path.suffix.lower()
+    raw: Any
+    if suffix in {".yaml", ".yml"}:
+        try:
+            import yaml
+        except ImportError as exc:  # pragma: no cover — declared dependency
+            raise ValueError(
+                "YAML probe files require PyYAML. Install tool-semantics with its "
+                "declared dependencies, or use a .json probe file."
+            ) from exc
+        raw = yaml.safe_load(text)
+    elif suffix == ".json":
+        import json
+
+        raw = json.loads(text)
+    else:
+        # Try JSON first, then YAML for extensionless / .probes files.
+        import json
+
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            try:
+                import yaml
+            except ImportError as exc:  # pragma: no cover
+                raise ValueError(f"Unsupported probe file {path}: use .json or .yaml/.yml") from exc
+            raw = yaml.safe_load(text)
+
+    if isinstance(raw, dict):
+        items = raw.get("probes")
+        if not isinstance(items, list):
+            raise ValueError(f"Probe file {path} must be a list or an object with a 'probes' array")
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        raise ValueError(f"Probe file {path} must be a list or object, got {type(raw).__name__}")
+
+    if not items:
+        raise ValueError(f"Probe file {path} contains no probes")
+
+    probes: list[Probe] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(f"Probe entry {index} in {path} must be an object")
+        try:
+            probes.append(Probe.model_validate(item))
+        except Exception as exc:  # noqa: BLE001 — pydantic ValidationError + clarity
+            raise ValueError(f"Invalid probe entry {index} in {path}: {exc}") from exc
+    return probes
 
 
 def json_freeze(value: dict[str, Any]) -> str:
