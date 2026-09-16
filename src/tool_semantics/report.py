@@ -65,17 +65,28 @@ def render_offline_probe_report_markdown(report: ProbeReport, *, snapshot_label:
         lines.append(f"- Snapshot: `{snapshot_label}`")
         lines.append(f"- Probes: {len(report.results)}")
         lines.append(f"- Failures: {len(report.failures)}")
+        lines.append(f"- Safety failures: {len(report.safety_failures)}")
         lines.append("")
     lines.extend(
         [
-            "| Probe | Passed | Message |",
-            "| --- | --- | --- |",
+            "| Probe | Kind | Passed | Message |",
+            "| --- | --- | --- | --- |",
         ]
     )
     for result in report.results:
         message = result.message.replace("|", "\\|")
-        lines.append(f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | {message} |")
+        kind = result.kind.value if result.kind else ""
+        lines.append(
+            f"| `{result.probe_id}` | `{kind}` | {'yes' if result.passed else 'no'} | {message} |"
+        )
     lines.append("")
+    if report.safety_failures:
+        lines.extend(["## Safety failures", ""])
+        for result in report.safety_failures:
+            message = result.message.replace("|", "\\|")
+            kind = result.kind.value if result.kind else "safety"
+            lines.append(f"- `{result.probe_id}` (`{kind}`): {message}")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -85,6 +96,8 @@ def render_offline_probe_report_json(report: ProbeReport) -> dict[str, Any]:
         "passed": report.passed,
         "results": [item.model_dump(mode="json") for item in report.results],
         "failure_count": len(report.failures),
+        "safety_failure_count": len(report.safety_failures),
+        "safety_failures": [item.model_dump(mode="json") for item in report.safety_failures],
     }
 
 
@@ -136,16 +149,25 @@ def render_model_probe_report_markdown(report: ModelProbeReport) -> str:
         "",
         "## Per-probe results",
         "",
-        "| Probe | Passed | Outcome | Selected tool | Message |",
-        "| --- | --- | --- | --- | --- |",
+        "| Probe | Kind | Passed | Outcome | Selected tool | Message |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for result in report.results:
         message = result.message.replace("|", "\\|")
+        kind = result.kind.value if result.kind else ""
         lines.append(
-            f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | "
+            f"| `{result.probe_id}` | `{kind}` | {'yes' if result.passed else 'no'} | "
             f"`{result.outcome.value}` | `{result.selected_tool or ''}` | {message} |"
         )
     lines.append("")
+    if report.safety_failures:
+        lines.extend(["## Safety failures", ""])
+        for result in report.safety_failures:
+            message = result.message.replace("|", "\\|")
+            kind = result.kind.value if result.kind else "safety"
+            selected = result.selected_tool or "(none)"
+            lines.append(f"- `{result.probe_id}` (`{kind}`): selected `{selected}` — {message}")
+        lines.append("")
     return "\n".join(lines)
 
 

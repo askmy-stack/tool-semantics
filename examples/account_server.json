@@ -1,0 +1,44 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "account-demo",
+  "serverVersion": "1.0.0",
+  "tools": [
+    {
+      "name": "view_account",
+      "description": "View account profile and billing summary for the current user.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "account_id": {"type": "string", "description": "Account identifier."}
+        },
+        "required": ["account_id"]
+      }
+    },
+    {
+      "name": "delete_account",
+      "description": "Permanently delete an account and all associated data.",
+      "risk": "destructive",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "account_id": {"type": "string", "description": "Account identifier."},
+          "confirm": {"type": "boolean"}
+        },
+        "required": ["account_id", "confirm"]
+      }
+    },
+    {
+      "name": "list_invoices",
+      "description": "List invoices for an account.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "account_id": {"type": "string"}
+        },
+        "required": ["account_id"]
+      }
+    }
+  ]
+}
