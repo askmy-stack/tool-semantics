@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from fixtures.fake_mcp_http_server import FakeMcpHttpServer
 from typer.testing import CliRunner
 
 from tool_semantics.cli import app
@@ -76,6 +77,32 @@ def test_capture_preserves_snapshot_write_os_error_without_provenance(tmp_path: 
     assert result.exit_code == 1
     assert isinstance(result.exception, IsADirectoryError)
     assert "Capture failed:" not in result.stdout
+
+
+def test_capture_mcp_http_and_bare_url(tmp_path: Path) -> None:
+    server = FakeMcpHttpServer()
+    server.start()
+    try:
+        out_http = tmp_path / "http.json"
+        result = runner.invoke(
+            app,
+            ["capture-mcp", "-o", str(out_http), "--http", server.mcp_url],
+        )
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(out_http.read_text(encoding="utf-8"))
+        assert payload["protocol"] == "mcp-http"
+        assert payload["metadata"]["protocol_version"] == "2025-03-26"
+
+        out_bare = tmp_path / "bare.json"
+        result = runner.invoke(
+            app,
+            ["capture-mcp", "-o", str(out_bare), server.mcp_url],
+        )
+        assert result.exit_code == 0, result.stdout
+        bare = json.loads(out_bare.read_text(encoding="utf-8"))
+        assert bare["protocol"] == "mcp-http"
+    finally:
+        server.stop()
 
 
 def test_capture_mcp_writes_redacted_requested_provenance(tmp_path: Path) -> None:

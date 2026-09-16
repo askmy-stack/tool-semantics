@@ -1,39 +1,33 @@
-# Course of action: tool-semantics (post–Milestone 4)
+# Course of action (Milestones 7+)
 
-Status as of 2026-09-15: **Milestones 0–6 are shipped** on `main`, including
-remote SSE capture (#43) and the model-backed probe stack (#44–#47) via
-[PR #53](https://github.com/askmy-stack/tool-semantics/pull/53). First PyPI
-release was `v0.2.0` (#31); provenance release `v0.3.0`; feature release
-**`v0.4.0`** packages #43–#47.
+Primary operational spec: [AGENT_EXECUTION.md](AGENT_EXECUTION.md).  
+Product positioning: behavioral regression for MCP / AI-agent interfaces.
 
-For a short summary, see [CLAUDE.md](../CLAUDE.md). Roadmap checkboxes:
-[ROADMAP.md](../ROADMAP.md).
+Shipped through **v0.4.0**: Milestones 0–6 (structural detect, stdio/SSE capture,
+offline + library model probes, policy, Action, adapters).
 
-## Completed phases
+## Phase order
 
-| Phase | Issues | Outcome |
-| --- | --- | --- |
-| 0 — Release hygiene | #31, `v0.3.0` | PyPI installable; Action pins work |
-| 1 — Remote MCP | #43 | `capture-mcp --sse` + auth-safe headers |
-| 2 — Model runner | #45 | `runner.py` (fake + OpenAI-compatible HTTP) |
-| 3 — Probes / metrics / stability | #44 → #46 → #47 | Opt-in model probes, JSON/MD metrics, trials |
-| 4 docs — Downstream handoff | — | See below + [downstream.md](downstream.md) |
+1. **Modernize** — Streamable HTTP, protocol negotiation, bare-URL capture (#59, #73, #74)
+2. **Simplify** — `eval` as primary UX (#57, #58, #76, #77, #78, #61)
+3. **Evaluate real behavior** — collision/rename, traces, discovery, safety/output (#79–#91)
+4. **Prove** — corpus, mutations, research harness, DX/docs (#92–#103)
 
-## Remaining / next work
+## Immediate next PRs
 
-1. **Keep `main` green** — run `ruff format` / `ruff check` / `pytest` before merge.
-2. **Downstream — myelinmesh v0.4** ([myelinmesh#21](https://github.com/askmy-stack/myelinmesh/issues/21)):
-   consume Tool-Semantics probe metrics / stability JSON for usage-weighted
-   change risk. Contract documented in [downstream.md](downstream.md).
-3. **Optional dogfood** — SSE capture against market-pulse-mcp (commands in
-   downstream.md).
-4. **Dependabot** — only act when a dependency PR fails.
+| Order | Issues | Priority | Outcome |
+| --- | --- | --- | --- |
+| 1 | #75 | P1 | Protocol/capability diffs |
+| 2 | #57 #58 | P0 | Probe CLI + CI gates |
+| 3 | #76 | P0 | Unified `eval` |
+| 4 | #105 #106 | P1 | Final-state + pass@k/pass^k |
+| 5 | #61 #77 #78 | P1 | Behavior codes + scorecard + PR comments |
 
-No further Milestone 1–4 product issues remain open once #43–#47 are closed.
+Shipped (PR #104): Streamable HTTP + protocol negotiation + bare-URL (#59, #73, #74).  
+New execution-spec gaps filed: #105–#117. Maintainer labeling: #118.
 
-## Cross-cutting rules
+Full priority tables: [AGENT_EXECUTION.md](AGENT_EXECUTION.md).
 
-- Land changes via PR to `main`; keep code in existing module boundaries.
-- Reuse `probes.py`, `report.py`, `redact.py`, `runner.py` rather than
-  duplicating responsibilities.
-- `pytest`, `ruff check .`, and `ruff format --check .` must pass.
+## Non-goals
+
+Dashboards, SaaS, generic agent runtimes — see AGENT_EXECUTION.md.

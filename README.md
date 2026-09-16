@@ -42,7 +42,7 @@ AI agents do not call tools the way typed clients do. They choose tools from **d
 | 4. Execution | Do calls still succeed with prior argument patterns? |
 | 5. Intent / side effects | Did risk, confirmation needs, or outcomes change? |
 
-The MVP implements deterministic interface snapshots and structural comparison (layers 1–2, with warnings that point at 3–5), plus local MCP capture over stdio. Remote MCP transport and model-based behavioral testing are on the [roadmap](ROADMAP.md).
+The MVP implements deterministic interface snapshots and structural comparison (layers 1–2, with warnings that point at 3–5), plus live MCP capture over stdio, Streamable HTTP, and legacy SSE. Model-based behavioral testing is available as an opt-in library; see the [roadmap](ROADMAP.md).
 
 ## How it works
 
@@ -136,6 +136,9 @@ print("compatible:", report.is_compatible)
 tool-semantics --version
 tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json] \
   [--provenance-output snapshot.provenance.json] [-v]
+tool-semantics capture-mcp -o snap.json https://example.com/mcp
+tool-semantics capture-mcp -o snap.json --http https://example.com/mcp
+tool-semantics capture-mcp -o snap.json --sse https://example.com/sse
 tool-semantics capture-mcp -o snap.json \
   [--provenance-output snap.provenance.json] -- python my_mcp_server.py
 tool-semantics compare <baseline.json> <candidate.json> \
@@ -147,7 +150,7 @@ tool-semantics compare <baseline.json> <candidate.json> \
 
 - `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
 - `--config` loads ignore rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
-- `capture-mcp` speaks MCP JSON-RPC over stdio; secrets-like keys are redacted by default.
+- `capture-mcp` speaks MCP JSON-RPC over stdio, Streamable HTTP, or legacy SSE; secrets-like keys are redacted by default. Bare URLs auto-detect HTTP then SSE — see [docs/mcp-versions.md](docs/mcp-versions.md).
 
 ### Approved baselines and provenance
 
@@ -213,8 +216,9 @@ docs/assets/          # README visuals
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for milestones. Live MCP supports stdio and SSE
-capture; model-backed probes / metrics / stability are available via the library
+See [ROADMAP.md](ROADMAP.md) for milestones. Live MCP supports stdio, Streamable
+HTTP, and legacy SSE ([docs/mcp-versions.md](docs/mcp-versions.md)).
+Model-backed probes / metrics / stability are available via the library
 API (`docs/probes.md`). Downstream consumers (myelinmesh, dogfood capture):
 [`docs/downstream.md`](docs/downstream.md).
 
