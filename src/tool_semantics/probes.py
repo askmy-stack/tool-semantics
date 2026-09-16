@@ -6,7 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from tool_semantics.models import InterfaceSnapshot, RiskLevel, ToolContract
+from tool_semantics.models import (
+    SCOPE_RANK,
+    InterfaceSnapshot,
+    PermissionScope,
+    RiskLevel,
+    ToolContract,
+)
 from tool_semantics.runner import ModelRunner, RunnerConfig, RunnerMetadata
 
 
@@ -25,8 +31,10 @@ class Probe(BaseModel):
     expected_tool: str | None = None
     forbidden_tools: list[str] = Field(default_factory=list)
     required_params: list[str] = Field(default_factory=list)
-    # Side-effect / confirmation expectations (Milestone 3).
+    # Side-effect / confirmation expectations (Milestone 3 / #87).
     max_risk: str | None = None  # read_only | external_write | destructive | unknown
+    max_scope: str | None = None  # resource…global | unknown
+    forbidden_side_effects: list[str] = Field(default_factory=list)
     requires_confirmation: bool = False
     # Human-reviewed approval gate for model-backed execution (#44).
     approved: bool = False
@@ -220,6 +228,49 @@ def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeRe
                         message=(
                             f"Tool '{tool.name}' risk '{tool.risk}' exceeds "
                             f"max_risk '{probe.max_risk}'."
+                        ),
+                    )
+                )
+                continue
+        if probe.max_scope is not None:
+            try:
+                allowed_scope = PermissionScope(probe.max_scope)
+            except ValueError:
+                report.results.append(
+                    ProbeResult(
+                        probe_id=probe.id,
+                        passed=False,
+                        message=f"Invalid max_scope '{probe.max_scope}'.",
+                    )
+                )
+                continue
+            if (
+                tool.scope is not PermissionScope.UNKNOWN
+                and allowed_scope is not PermissionScope.UNKNOWN
+                and SCOPE_RANK[tool.scope] > SCOPE_RANK[allowed_scope]
+            ):
+                report.results.append(
+                    ProbeResult(
+                        probe_id=probe.id,
+                        passed=False,
+                        message=(
+                            f"Tool '{tool.name}' scope '{tool.scope}' exceeds "
+                            f"max_scope '{probe.max_scope}'."
+                        ),
+                    )
+                )
+                continue
+        if probe.forbidden_side_effects:
+            forbidden = {item.strip().lower() for item in probe.forbidden_side_effects if item}
+            hit = sorted(set(tool.side_effects) & forbidden)
+            if hit:
+                report.results.append(
+                    ProbeResult(
+                        probe_id=probe.id,
+                        passed=False,
+                        message=(
+                            f"Tool '{tool.name}' declares forbidden side effect(s): "
+                            f"{', '.join(hit)}."
                         ),
                     )
                 )

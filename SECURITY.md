@@ -26,3 +26,16 @@ Do not open a public issue for vulnerabilities that could enable remote code
 execution, secret leakage, or unsafe tool invocation.
 
 We aim to acknowledge reports within 7 days.
+
+## Safety annotations (#87)
+
+Tool contracts may declare optional safety fields: `risk`, `scope`
+(`resource`…`global`), `side_effects`, and `requires_confirmation`. Capture
+**only records values present** in manifests or MCP `annotations` — Tool-Semantics
+never invents side effects or scopes. Treating missing fields as `unknown` /
+empty is intentional; do not assume a tool is safe because annotations are
+absent.
+
+Diffing escalations (`tool.scope_escalated`, `tool.side_effect_added`,
+`tool.confirmation_removed`) can fail CI at breaking/critical severity. See
+[docs/change-codes.md](docs/change-codes.md) and [docs/safety.md](docs/safety.md).

@@ -4,7 +4,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
+from tool_semantics.models import (
+    SCOPE_RANK,
+    InterfaceSnapshot,
+    PermissionScope,
+    ToolContract,
+    ToolParameter,
+)
 
 
 class Severity(StrEnum):
@@ -292,6 +298,90 @@ def _append_schema_changes(
     )
 
 
+def _append_safety_semantics_changes(
+    report: CompatibilityReport,
+    name: str,
+    old_tool: ToolContract,
+    new_tool: ToolContract,
+) -> None:
+    """Diff permission scope, side effects, and confirmation requirements (#87)."""
+    old_scope = old_tool.scope
+    new_scope = new_tool.scope
+    if old_scope != new_scope:
+        old_rank = SCOPE_RANK[old_scope]
+        new_rank = SCOPE_RANK[new_scope]
+        if (
+            new_scope is not PermissionScope.UNKNOWN
+            and old_scope is not PermissionScope.UNKNOWN
+            and new_rank > old_rank
+        ):
+            severity = (
+                Severity.CRITICAL
+                if new_scope in {PermissionScope.ACCOUNT, PermissionScope.GLOBAL}
+                else Severity.BREAKING
+            )
+            code = "tool.scope_escalated"
+            message = f"Permission scope escalated from '{old_scope}' to '{new_scope}'."
+        else:
+            severity = Severity.WARNING
+            code = "tool.scope_changed"
+            message = f"Permission scope changed from '{old_scope}' to '{new_scope}'."
+        report.changes.append(Change(severity=severity, code=code, subject=name, message=message))
+
+    old_effects = set(old_tool.side_effects)
+    new_effects = set(new_tool.side_effects)
+    added = sorted(new_effects - old_effects)
+    removed = sorted(old_effects - new_effects)
+    for effect in added:
+        severity = (
+            Severity.CRITICAL
+            if effect in {"delete", "payment", "admin", "execute"}
+            else Severity.BREAKING
+        )
+        report.changes.append(
+            Change(
+                severity=severity,
+                code="tool.side_effect_added",
+                subject=name,
+                message=f"Side effect '{effect}' was added.",
+            )
+        )
+    for effect in removed:
+        report.changes.append(
+            Change(
+                severity=Severity.INFO,
+                code="tool.side_effect_removed",
+                subject=name,
+                message=f"Side effect '{effect}' was removed.",
+            )
+        )
+
+    old_confirm = old_tool.requires_confirmation
+    new_confirm = new_tool.requires_confirmation
+    if old_confirm is not None and new_confirm is not None and old_confirm != new_confirm:
+        if old_confirm and not new_confirm:
+            report.changes.append(
+                Change(
+                    severity=Severity.CRITICAL,
+                    code="tool.confirmation_removed",
+                    subject=name,
+                    message=(
+                        "requires_confirmation changed from true to false "
+                        "(confirmation requirement removed)."
+                    ),
+                )
+            )
+        else:
+            report.changes.append(
+                Change(
+                    severity=Severity.INFO,
+                    code="tool.confirmation_added",
+                    subject=name,
+                    message="requires_confirmation changed from false to true.",
+                )
+            )
+
+
 def _compare_tool_pair(
     report: CompatibilityReport,
     name: str,
@@ -322,6 +412,9 @@ def _compare_tool_pair(
                 message=f"Risk level changed from '{old_tool.risk}' to '{new_tool.risk}'.",
             )
         )
+
+    _append_safety_semantics_changes(report, name, old_tool, new_tool)
+
     _append_output_schema_changes(
         report,
         name,
