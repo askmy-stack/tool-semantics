@@ -127,12 +127,16 @@ def render_probe_metrics_json(metrics: ProbeMetrics) -> dict[str, Any]:
 
 def render_model_probe_report_markdown(report: ModelProbeReport) -> str:
     metrics_section = ""
+    from tool_semantics.intervals import intervals_from_probe_results, render_intervals_markdown
     from tool_semantics.probes import compute_probe_metrics
 
     metrics = compute_probe_metrics(report.results)
     metrics_section = render_probe_metrics_markdown(metrics)
+    intervals_md = render_intervals_markdown(intervals_from_probe_results(report.results))
     lines = [
         metrics_section.rstrip(),
+        "",
+        intervals_md.rstrip(),
         "",
         "## Per-probe results",
         "",
@@ -187,6 +191,12 @@ def render_stability_markdown(report: StabilityReport) -> str:
         lines.append("")
         for item in deterministic:
             lines.append(f"- `{item.probe_id}`: {item.message}")
+        lines.append("")
+    if report.intervals:
+        from tool_semantics.intervals import IntervalsBundle, render_intervals_markdown
+
+        bundle = IntervalsBundle.model_validate(report.intervals)
+        lines.append(render_intervals_markdown(bundle).rstrip())
         lines.append("")
     return "\n".join(lines)
 

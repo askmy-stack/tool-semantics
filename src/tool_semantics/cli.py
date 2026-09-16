@@ -573,10 +573,16 @@ def probe(
     console.print(f"Result: [bold]{'PASS' if model_report.passed else 'FAIL'}[/bold]")
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
+        from tool_semantics.intervals import enrich_metrics_dict, intervals_from_probe_results
+        from tool_semantics.probes import compute_probe_metrics
+
+        metrics = compute_probe_metrics(model_report.results)
         payload = {
             "mode": "model",
             "passed": model_report.passed,
             "opt_in": model_report.opt_in,
+            "metrics": enrich_metrics_dict(metrics, model_report.results),
+            "intervals": intervals_from_probe_results(model_report.results).model_dump(mode="json"),
             "results": [item.model_dump(mode="json") for item in model_report.results],
         }
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
