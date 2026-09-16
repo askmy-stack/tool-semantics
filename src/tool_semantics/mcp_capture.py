@@ -219,6 +219,13 @@ def _server_capabilities(init: Any) -> dict[str, Any]:
     return caps if isinstance(caps, dict) else {}
 
 
+def _server_extensions_metadata(init: Any) -> dict[str, Any]:
+    """Best-effort extensions advertised at initialize (#91)."""
+    from tool_semantics.extensions import extensions_metadata
+
+    return extensions_metadata(init)
+
+
 def _list_interface_via_rpc(
     rpc: Any,
     notify: Any,
@@ -329,6 +336,7 @@ def capture_mcp_stdio(
                 "command": command,
                 "protocol_version": negotiated,
                 "server_capabilities": _server_capabilities(init),
+                "extensions": _server_extensions_metadata(init),
             },
         )
         return redact_snapshot(snapshot) if redact else snapshot
@@ -872,6 +880,7 @@ def capture_mcp_sse(
             "request_header_names": _headers_for_metadata(request_headers),
             "protocol_version": negotiated,
             "server_capabilities": _server_capabilities(init),
+            "extensions": _server_extensions_metadata(init),
         }
         return _snapshot_from_lists(
             protocol="mcp-sse",
@@ -929,6 +938,7 @@ def capture_mcp_http(
             "request_header_names": _headers_for_metadata(request_headers),
             "protocol_version": negotiated,
             "server_capabilities": _server_capabilities(init),
+            "extensions": _server_extensions_metadata(init),
             "mcp_session": session.has_session,
         }
         return _snapshot_from_lists(

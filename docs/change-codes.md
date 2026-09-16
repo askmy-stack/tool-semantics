@@ -25,6 +25,9 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `parameter.schema_changed` | breaking | Parameter JSON Schema changed (excluding `default`; non-enum or unstructured) |
 | `parameter.enum_values_removed` | breaking | One or more enum values were removed |
 | `parameter.enum_values_added` | info | One or more enum values were added |
+| `extension.removed` | breaking | MCP extension advertised at initialize was removed (#91) |
+| `extension.added` | info | New MCP extension advertised |
+| `extension.version_changed` | breaking / warning | Extension version string changed |
 
 ## Notes for contributors
 
