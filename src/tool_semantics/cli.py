@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -19,8 +20,23 @@ from tool_semantics.mcp_capture import (
     capture_mcp_stdio,
 )
 from tool_semantics.policy import policy_from_name
+from tool_semantics.probes import (
+    evaluate_probes,
+    evaluate_probes_with_model,
+    load_probes,
+    run_probe_trials,
+)
 from tool_semantics.provenance import write_provenance
-from tool_semantics.report import render_markdown, severity_style
+from tool_semantics.report import (
+    render_markdown,
+    render_model_probe_report_markdown,
+    render_offline_probe_report_json,
+    render_offline_probe_report_markdown,
+    render_stability_json,
+    render_stability_markdown,
+    severity_style,
+)
+from tool_semantics.runner import OpenAICompatibleRunner, RunnerConfig
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
 
 app = typer.Typer(
@@ -315,6 +331,263 @@ def _require_snapshot_file(path: Path, label: str) -> Path:
         )
         raise typer.Exit(code=2)
     return path
+
+
+def _openai_runner_from_env(
+    *,
+    model: str | None,
+    api_key: str | None,
+    base_url: str | None,
+) -> OpenAICompatibleRunner:
+    resolved_model = (
+        model
+        or os.environ.get("TOOL_SEMANTICS_MODEL")
+        or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    )
+    resolved_key = (
+        api_key or os.environ.get("TOOL_SEMANTICS_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    )
+    resolved_base = (
+        base_url
+        or os.environ.get("TOOL_SEMANTICS_BASE_URL")
+        or os.environ.get("OPENAI_BASE_URL")
+        or "https://api.openai.com/v1"
+    )
+    if not resolved_key:
+        console.print(
+            "[red]Model-backed probes require an API key.[/red]\n"
+            "Set TOOL_SEMANTICS_API_KEY or OPENAI_API_KEY, or pass --api-key.\n"
+            "See docs/probes.md."
+        )
+        raise typer.Exit(code=2)
+    try:
+        return OpenAICompatibleRunner(
+            model=resolved_model,
+            api_key=resolved_key,
+            base_url=resolved_base,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Invalid model runner config:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+
+@app.command()
+def probe(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Snapshot JSON from `capture` / `capture-mcp`."),
+    ],
+    probes_file: Annotated[
+        Path,
+        typer.Option(
+            "--probes",
+            "-p",
+            help="Probe suite JSON or YAML (list or {probes: [...]}).",
+        ),
+    ],
+    model: Annotated[
+        bool,
+        typer.Option(
+            "--model",
+            help="Opt-in model-backed evaluation (requires approved probes + API key).",
+        ),
+    ] = False,
+    trials: Annotated[
+        int,
+        typer.Option(
+            "--trials",
+            help="Repeat model-backed probes for stability (implies --model when > 1).",
+        ),
+    ] = 1,
+    seed: Annotated[
+        int | None,
+        typer.Option("--seed", help="Base seed for model-backed trials (optional)."),
+    ] = None,
+    model_name: Annotated[
+        str | None,
+        typer.Option("--model-name", help="Model id (or TOOL_SEMANTICS_MODEL / OPENAI_MODEL)."),
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option(
+            "--api-key",
+            help="API key (prefer TOOL_SEMANTICS_API_KEY / OPENAI_API_KEY env).",
+        ),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option(
+            "--base-url",
+            help="OpenAI-compatible base URL (or TOOL_SEMANTICS_BASE_URL).",
+        ),
+    ] = None,
+    allow_unapproved: Annotated[
+        bool,
+        typer.Option(
+            "--allow-unapproved",
+            help="Allow model-backed runs without approved=true (not recommended).",
+        ),
+    ] = False,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write a JSON probe report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write a Markdown probe report."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log probe steps to stderr."),
+    ] = False,
+) -> None:
+    """Run offline (default) or opt-in model-backed behavioral probes."""
+    _require_snapshot_file(snapshot, "Probe")
+    if not probes_file.is_file():
+        console.print(f"[red]Probe file not found:[/red] {probes_file}")
+        raise typer.Exit(code=2)
+    if trials < 1:
+        console.print("[red]--trials must be >= 1[/red]")
+        raise typer.Exit(code=2)
+
+    use_model = model or trials > 1
+    _log_verbose(verbose, f"Loading snapshot {snapshot.resolve()}")
+    _log_verbose(verbose, f"Loading probes {probes_file.resolve()}")
+    try:
+        snap = read_snapshot(snapshot)
+        probes = load_probes(probes_file)
+    except (ManifestError, FileNotFoundError, ValueError, OSError) as exc:
+        console.print(f"[red]Probe load failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    _log_verbose(verbose, f"Probes={len(probes)} tools={len(snap.tools)} model={use_model}")
+
+    if not use_model:
+        report = evaluate_probes(snap, probes)
+        table = Table(title=f"Offline probes: {snap.server_name}")
+        table.add_column("Probe")
+        table.add_column("Passed")
+        table.add_column("Message")
+        for result in report.results:
+            color = "green" if result.passed else "red"
+            table.add_row(
+                result.probe_id,
+                f"[{color}]{'yes' if result.passed else 'no'}[/]",
+                result.message,
+            )
+        console.print(table)
+        console.print(f"Result: [bold]{'PASS' if report.passed else 'FAIL'}[/bold]")
+        if json_output is not None:
+            json_output.parent.mkdir(parents=True, exist_ok=True)
+            payload = render_offline_probe_report_json(report)
+            payload["snapshot"] = str(snapshot)
+            json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        if markdown_output is not None:
+            markdown_output.parent.mkdir(parents=True, exist_ok=True)
+            markdown_output.write_text(
+                render_offline_probe_report_markdown(report, snapshot_label=str(snapshot)),
+                encoding="utf-8",
+            )
+        if not report.passed:
+            raise typer.Exit(code=1)
+        return
+
+    runner = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
+    require_approval = not allow_unapproved
+    cfg = RunnerConfig(seed=seed)
+    if trials > 1:
+        stability = run_probe_trials(
+            snap,
+            probes,
+            runner,
+            trial_count=trials,
+            config=cfg,
+            require_approval=require_approval,
+            seed=seed,
+        )
+        failed = [
+            item
+            for item in stability.summaries
+            if item.deterministic_failure or (not item.aggregate_passed and not item.unstable)
+        ]
+        unstable = [item for item in stability.summaries if item.unstable]
+        # Treat unstable or deterministic failure as exit 1.
+        failed_policy = bool(failed or unstable)
+        table = Table(title=f"Stability probes ({trials} trials): {snap.server_name}")
+        table.add_column("Probe")
+        table.add_column("Stability")
+        table.add_column("Unstable")
+        table.add_column("Det. fail")
+        table.add_column("Passed")
+        for summary in stability.summaries:
+            table.add_row(
+                summary.probe_id,
+                f"{summary.stability_score:.2f}",
+                "yes" if summary.unstable else "no",
+                "yes" if summary.deterministic_failure else "no",
+                "yes" if summary.aggregate_passed else "no",
+            )
+        console.print(table)
+        console.print(
+            f"Result: [bold]{'PASS' if not failed_policy else 'FAIL'}[/bold] "
+            f"(unstable={len(unstable)} deterministic_failures={len(failed)})"
+        )
+        if json_output is not None:
+            json_output.parent.mkdir(parents=True, exist_ok=True)
+            json_output.write_text(render_stability_json(stability), encoding="utf-8")
+        if markdown_output is not None:
+            markdown_output.parent.mkdir(parents=True, exist_ok=True)
+            markdown_output.write_text(render_stability_markdown(stability), encoding="utf-8")
+        if failed_policy:
+            raise typer.Exit(code=1)
+        return
+
+    model_report = evaluate_probes_with_model(
+        snap,
+        probes,
+        runner,
+        config=cfg,
+        require_approval=require_approval,
+    )
+    table = Table(title=f"Model-backed probes: {snap.server_name}")
+    table.add_column("Probe")
+    table.add_column("Passed")
+    table.add_column("Outcome")
+    table.add_column("Selected")
+    table.add_column("Message")
+    for item in model_report.results:
+        if item.passed:
+            color = "green"
+        elif item.outcome.value == "skipped":
+            color = "yellow"
+        else:
+            color = "red"
+        table.add_row(
+            item.probe_id,
+            f"[{color}]{'yes' if item.passed else 'no'}[/]",
+            item.outcome.value,
+            item.selected_tool or "",
+            item.message,
+        )
+    console.print(table)
+    console.print(f"Result: [bold]{'PASS' if model_report.passed else 'FAIL'}[/bold]")
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "mode": "model",
+            "passed": model_report.passed,
+            "opt_in": model_report.opt_in,
+            "results": [item.model_dump(mode="json") for item in model_report.results],
+        }
+        json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(
+            render_model_probe_report_markdown(model_report),
+            encoding="utf-8",
+        )
+    if not model_report.passed:
+        raise typer.Exit(code=1)
 
 
 @app.command()

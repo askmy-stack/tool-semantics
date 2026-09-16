@@ -58,7 +58,7 @@ tool-semantics capture-mcp -o snap.json https://example.com/mcp
 
 ## Current priorities
 
-1. **P0** — Merge modern MCP capture (PR #104); then probe CLI + CI gates + `eval` (#57, #58, #76).
+1. **P0** — Probe CLI (#57) → CI probe gates (#58) → unified `eval` (#76).
 2. **P1** — Final-state / reliability / protocol diffs (#105, #106, #75) and scorecard (#77).
 3. Maintainer: apply GitHub priority labels (#118) — agents cannot label via API.
 4. Full prioritized backlog: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md).

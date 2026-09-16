@@ -58,7 +58,7 @@
 - [ ] Protocol / capability structural diffs — [#75](https://github.com/askmy-stack/tool-semantics/issues/75)
 
 ## Milestone 8 — Unified evaluation UX (TEST → PROTECT)
-- [ ] Probe CLI surface — [#57](https://github.com/askmy-stack/tool-semantics/issues/57) **P0**
+- [x] Probe CLI surface — [#57](https://github.com/askmy-stack/tool-semantics/issues/57) **P0** (this PR)
 - [ ] Probe gates in CI Action — [#58](https://github.com/askmy-stack/tool-semantics/issues/58) **P0**
 - [ ] Unified `eval` command — [#76](https://github.com/askmy-stack/tool-semantics/issues/76) **P0**
 - [ ] Final-state verifier — [#105](https://github.com/askmy-stack/tool-semantics/issues/105) **P1**

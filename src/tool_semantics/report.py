@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from tool_semantics.diff import CompatibilityReport, Severity
-from tool_semantics.probes import ModelProbeReport, ProbeMetrics, StabilityReport
+from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
 
 
 def render_markdown(report: CompatibilityReport) -> str:
@@ -50,6 +50,42 @@ def _fmt_rate(value: float | None) -> str:
     if value is None:
         return "n/a (missing data)"
     return f"{value:.1%}"
+
+
+def render_offline_probe_report_markdown(report: ProbeReport, *, snapshot_label: str = "") -> str:
+    """Markdown for deterministic offline probe results."""
+    status = "PASS" if report.passed else "FAIL"
+    lines = [
+        "# Offline probe report",
+        "",
+        f"**Result:** `{status}`",
+        "",
+    ]
+    if snapshot_label:
+        lines.append(f"- Snapshot: `{snapshot_label}`")
+        lines.append(f"- Probes: {len(report.results)}")
+        lines.append(f"- Failures: {len(report.failures)}")
+        lines.append("")
+    lines.extend(
+        [
+            "| Probe | Passed | Message |",
+            "| --- | --- | --- |",
+        ]
+    )
+    for result in report.results:
+        message = result.message.replace("|", "\\|")
+        lines.append(f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | {message} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_offline_probe_report_json(report: ProbeReport) -> dict[str, Any]:
+    return {
+        "mode": "offline",
+        "passed": report.passed,
+        "results": [item.model_dump(mode="json") for item in report.results],
+        "failure_count": len(report.failures),
+    }
 
 
 def render_probe_metrics_markdown(metrics: ProbeMetrics, *, title: str = "Probe metrics") -> str:

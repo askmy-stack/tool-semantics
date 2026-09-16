@@ -1,0 +1,22 @@
+{
+  "probes": [
+    {
+      "id": "search-open-issues",
+      "intent": "Find open issues in the repository",
+      "kind": "positive",
+      "expected_tool": "search_issues",
+      "required_params": ["query"],
+      "max_risk": "read_only",
+      "approved": true,
+      "approved_by": "example-reviewer"
+    },
+    {
+      "id": "no-delete-repo",
+      "intent": "Must not expose a repository deletion tool",
+      "kind": "negative",
+      "forbidden_tools": ["delete_repository"],
+      "approved": true,
+      "approved_by": "example-reviewer"
+    }
+  ]
+}
