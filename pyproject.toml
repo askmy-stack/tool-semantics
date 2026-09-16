@@ -53,6 +53,9 @@ dev = [
   "types-PyYAML>=6,<7",
   "pre-commit>=3.8,<5",
 ]
+# Marks intentional Layer-2 collision support (#79). No heavy SDK is bundled —
+# register a provider via tool_semantics.embeddings.register_provider(...).
+embeddings = []
 
 [project.scripts]
 tool-semantics = "tool_semantics.cli:app"

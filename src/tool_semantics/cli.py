@@ -10,7 +10,8 @@ from rich.console import Console
 from rich.table import Table
 
 from tool_semantics import __version__
-from tool_semantics.config import apply_ignore_rules, load_config
+from tool_semantics.collision import EmbeddingProvider
+from tool_semantics.config import ToolSemanticsConfig, apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.mcp_capture import (
     McpCaptureError,
@@ -68,6 +69,23 @@ def main(
 def _log_verbose(verbose: bool, message: str) -> None:
     if verbose:
         err_console.print(f"[dim]{message}[/dim]")
+
+
+def _resolve_collision_embeddings(
+    config_data: ToolSemanticsConfig,
+) -> EmbeddingProvider | None:
+    if not config_data.diff.use_embeddings:
+        return None
+    from tool_semantics.collision import try_load_default_embeddings
+
+    provider = try_load_default_embeddings()
+    if provider is None:
+        raise ValueError(
+            "diff.use_embeddings=true but no embedding provider is available. "
+            "Install tool-semantics[embeddings] and register a provider via "
+            "tool_semantics.embeddings.register_provider(...)."
+        )
+    return provider
 
 
 def _parse_headers(raw_headers: list[str] | None) -> dict[str, str]:
@@ -656,7 +674,13 @@ def compare(
             f"Tools: baseline={len(baseline_snap.tools)} candidate={len(candidate_snap.tools)}",
         )
         report = apply_ignore_rules(
-            compare_snapshots(baseline_snap, candidate_snap),
+            compare_snapshots(
+                baseline_snap,
+                candidate_snap,
+                detect_collisions=config_data.diff.detect_collisions,
+                collision_threshold=config_data.diff.collision_threshold,
+                collision_embeddings=_resolve_collision_embeddings(config_data),
+            ),
             config_data,
         )
     except (ManifestError, FileNotFoundError, ValueError) as exc:

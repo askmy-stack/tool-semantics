@@ -19,9 +19,19 @@ class IgnoreRules:
 
 
 @dataclass(frozen=True)
+class DiffSettings:
+    """Structural / semantic diff knobs (rename, collision thresholds)."""
+
+    detect_collisions: bool = True
+    collision_threshold: float = 0.55
+    use_embeddings: bool = False
+
+
+@dataclass(frozen=True)
 class ToolSemanticsConfig:
     ignore: IgnoreRules = field(default_factory=IgnoreRules)
     policy: ReleasePolicy = field(default_factory=ReleasePolicy)
+    diff: DiffSettings = field(default_factory=DiffSettings)
 
 
 def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
@@ -30,6 +40,25 @@ def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"Config field '{field_name}' must be an array of strings")
     return tuple(value)
+
+
+def _as_bool(value: Any, field_name: str, default: bool) -> bool:
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"Config field '{field_name}' must be a boolean")
+    return value
+
+
+def _as_float(value: Any, field_name: str, default: float) -> float:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"Config field '{field_name}' must be a number")
+    number = float(value)
+    if number < 0.0 or number > 1.0:
+        raise ValueError(f"Config field '{field_name}' must be in [0, 1]")
+    return number
 
 
 def _parse_policy(raw: dict[str, Any]) -> ReleasePolicy:
@@ -43,6 +72,16 @@ def _parse_policy(raw: dict[str, Any]) -> ReleasePolicy:
             "policy.fail_at_or_above must be one of: info, warning, breaking, critical, none"
         ) from exc
     return ReleasePolicy(fail_at_or_above=severity)
+
+
+def _parse_diff(raw: dict[str, Any]) -> DiffSettings:
+    return DiffSettings(
+        detect_collisions=_as_bool(raw.get("detect_collisions"), "diff.detect_collisions", True),
+        collision_threshold=_as_float(
+            raw.get("collision_threshold"), "diff.collision_threshold", 0.55
+        ),
+        use_embeddings=_as_bool(raw.get("use_embeddings"), "diff.use_embeddings", False),
+    )
 
 
 def load_config(path: Path | None = None) -> ToolSemanticsConfig:
@@ -69,12 +108,18 @@ def load_config(path: Path | None = None) -> ToolSemanticsConfig:
         policy_raw = {}
     if not isinstance(policy_raw, dict):
         raise ValueError("Config field 'policy' must be a table")
+    diff_raw = raw.get("diff", {})
+    if diff_raw is None:
+        diff_raw = {}
+    if not isinstance(diff_raw, dict):
+        raise ValueError("Config field 'diff' must be a table")
     return ToolSemanticsConfig(
         ignore=IgnoreRules(
             codes=_as_str_tuple(ignore_raw.get("codes"), "ignore.codes"),
             subjects=_as_str_tuple(ignore_raw.get("subjects"), "ignore.subjects"),
         ),
         policy=_parse_policy(policy_raw),
+        diff=_parse_diff(diff_raw),
     )
 
 
