@@ -1,0 +1,37 @@
+{
+  "tool_semantics_trace_version": "1.0",
+  "id": "github-triage-multi-001",
+  "intent": "Triage the top open bug: search issues then create a follow-up comment draft",
+  "turns": [
+    {
+      "intent": "Search for open bugs labeled bug",
+      "selected_tool": "search_issues",
+      "arguments": {
+        "query": "label:bug",
+        "repo": "askmy-stack/tool-semantics",
+        "state": "open"
+      },
+      "outcome": "success",
+      "timestamp": "2026-09-16T12:05:00Z",
+      "latency_ms": 120.5
+    },
+    {
+      "intent": "Draft a comment on the first matching issue",
+      "selected_tool": "create_issue_comment",
+      "arguments": {
+        "issue_number": 42,
+        "body": "Thanks for the report — investigating.",
+        "api_token": "ghp_example_should_be_redacted"
+      },
+      "outcome": "success",
+      "timestamp": "2026-09-16T12:05:02Z",
+      "latency_ms": 340.0
+    }
+  ],
+  "outcome": "success",
+  "model": {
+    "provider": "openai-compatible",
+    "model": "gpt-4.1-mini"
+  },
+  "server_name": "github"
+}
