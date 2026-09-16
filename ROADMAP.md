@@ -80,7 +80,7 @@
 - [ ] Trace schema + capture — [#83](https://github.com/askmy-stack/tool-semantics/issues/83) **P1**
 - [ ] Trace replay — [#84](https://github.com/askmy-stack/tool-semantics/issues/84) **P1**
 - [ ] Project layout / discovery baselines — [#85](https://github.com/askmy-stack/tool-semantics/issues/85), [#86](https://github.com/askmy-stack/tool-semantics/issues/86) **P2/P1**
-- [ ] Cross-application workflows — [#112](https://github.com/askmy-stack/tool-semantics/issues/112) **P2**
+- [x] Cross-application workflows — [#112](https://github.com/askmy-stack/tool-semantics/issues/112) **P2**
 
 ## Milestone 11 — Safety, output, MCP-wide
 - [ ] Safety scope / side effects / confirmation — [#87](https://github.com/askmy-stack/tool-semantics/issues/87) **P1**
