@@ -68,15 +68,33 @@ def render_offline_probe_report_markdown(report: ProbeReport, *, snapshot_label:
         lines.append("")
     lines.extend(
         [
-            "| Probe | Passed | Message |",
-            "| --- | --- | --- |",
+            "| Probe | Passed | Tool call | Trajectory | Final state | Message |",
+            "| --- | --- | --- | --- | --- | --- |",
         ]
     )
     for result in report.results:
         message = result.message.replace("|", "\\|")
-        lines.append(f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | {message} |")
+        lines.append(
+            f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | "
+            f"{_tri(result.tool_call_correct)} | {_tri(result.trajectory_correct)} | "
+            f"{_tri(result.final_state_correct)} | {message} |"
+        )
     lines.append("")
+    for result in report.results:
+        if result.final_state is not None and result.final_state.checks:
+            from tool_semantics.state_verifier import render_final_state_markdown
+
+            lines.append(
+                render_final_state_markdown(result.final_state, probe_id=result.probe_id).rstrip()
+            )
+            lines.append("")
     return "\n".join(lines)
+
+
+def _tri(value: bool | None) -> str:
+    if value is None:
+        return "n/a"
+    return "yes" if value else "no"
 
 
 def render_offline_probe_report_json(report: ProbeReport) -> dict[str, Any]:
@@ -85,6 +103,9 @@ def render_offline_probe_report_json(report: ProbeReport) -> dict[str, Any]:
         "passed": report.passed,
         "results": [item.model_dump(mode="json") for item in report.results],
         "failure_count": len(report.failures),
+        "final_state_failures": [
+            item.probe_id for item in report.results if item.final_state_correct is False
+        ],
     }
 
 

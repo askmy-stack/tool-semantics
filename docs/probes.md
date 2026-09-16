@@ -31,6 +31,9 @@ Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
+Final-state checks (`expected_state` / `--observed-states`) are documented in
+[final-state.md](final-state.md).
+
 ## Approval workflow
 
 1. Author a `Probe` with `intent`, expectations (`expected_tool`,

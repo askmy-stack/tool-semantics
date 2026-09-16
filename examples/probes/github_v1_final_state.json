@@ -1,0 +1,21 @@
+{
+  "probes": [
+    {
+      "id": "search-with-state",
+      "intent": "Find open issues and leave the workspace ready for triage",
+      "kind": "positive",
+      "expected_tool": "search_issues",
+      "required_params": ["query"],
+      "max_risk": "read_only",
+      "approved": true,
+      "expected_state": {
+        "query_applied": true,
+        "result_count_nonzero": true
+      },
+      "observed_state": {
+        "query_applied": true,
+        "result_count_nonzero": true
+      }
+    }
+  ]
+}
