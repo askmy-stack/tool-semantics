@@ -485,7 +485,9 @@ def probe(
         if markdown_output is not None:
             markdown_output.parent.mkdir(parents=True, exist_ok=True)
             markdown_output.write_text(
-                render_offline_probe_report_markdown(report, snapshot_label=str(snapshot)),
+                render_offline_probe_report_markdown(
+                    report, snapshot_label=str(snapshot), probes=probes
+                ),
                 encoding="utf-8",
             )
         if not report.passed:

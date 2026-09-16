@@ -6,7 +6,13 @@ import json
 from typing import Any
 
 from tool_semantics.diff import CompatibilityReport, Severity
-from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
+from tool_semantics.probes import (
+    ModelProbeReport,
+    Probe,
+    ProbeMetrics,
+    ProbeReport,
+    StabilityReport,
+)
 
 
 def render_markdown(report: CompatibilityReport) -> str:
@@ -52,7 +58,12 @@ def _fmt_rate(value: float | None) -> str:
     return f"{value:.1%}"
 
 
-def render_offline_probe_report_markdown(report: ProbeReport, *, snapshot_label: str = "") -> str:
+def render_offline_probe_report_markdown(
+    report: ProbeReport,
+    *,
+    snapshot_label: str = "",
+    probes: list[Probe] | None = None,
+) -> str:
     """Markdown for deterministic offline probe results."""
     status = "PASS" if report.passed else "FAIL"
     lines = [
@@ -76,6 +87,16 @@ def render_offline_probe_report_markdown(report: ProbeReport, *, snapshot_label:
         message = result.message.replace("|", "\\|")
         lines.append(f"| `{result.probe_id}` | {'yes' if result.passed else 'no'} | {message} |")
     lines.append("")
+    if probes:
+        from tool_semantics.difficulty import (
+            group_results_by_messiness,
+            render_messiness_groups_markdown,
+        )
+
+        groups = group_results_by_messiness(probes, report.results)
+        if any(stats.probe_count for stats in groups.values()):
+            lines.append(render_messiness_groups_markdown(groups).rstrip())
+            lines.append("")
     return "\n".join(lines)
 
 

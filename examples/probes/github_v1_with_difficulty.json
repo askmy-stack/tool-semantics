@@ -1,0 +1,54 @@
+{
+  "probes": [
+    {
+      "id": "easy-search",
+      "intent": "Find notes about login",
+      "kind": "positive",
+      "expected_tool": "search_issues",
+      "required_params": ["query"],
+      "approved": true,
+      "difficulty": {
+        "tool_call_count": 1,
+        "candidate_tool_count": 1,
+        "messiness": 2,
+        "notes": "Single clear read-only tool"
+      }
+    },
+    {
+      "id": "medium-create",
+      "intent": "Create an issue about flaky CI",
+      "kind": "positive",
+      "expected_tool": "create_issue",
+      "required_params": ["title", "body"],
+      "max_risk": "external_write",
+      "requires_confirmation": true,
+      "approved": true,
+      "difficulty": {
+        "tool_call_count": 1,
+        "candidate_tool_count": 2,
+        "permission_complexity": 1,
+        "messiness": 5,
+        "notes": "Write path with confirmation"
+      }
+    },
+    {
+      "id": "hard-stateful",
+      "intent": "Search then comment on the top matching issue",
+      "kind": "positive",
+      "expected_tool": "search_issues",
+      "required_params": ["query"],
+      "approved": true,
+      "difficulty": {
+        "tool_call_count": 3,
+        "candidate_tool_count": 3,
+        "cross_tool_dependencies": true,
+        "stateful": true,
+        "ambiguous_tool_choice": true,
+        "permission_complexity": 1,
+        "requires_error_recovery": true,
+        "messiness": 8,
+        "notes": "Multi-step with ambiguity"
+      }
+    }
+  ]
+}
