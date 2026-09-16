@@ -428,6 +428,20 @@ def probe(
             help="Allow model-backed runs without approved=true (not recommended).",
         ),
     ] = False,
+    workers: Annotated[
+        int,
+        typer.Option(
+            "--workers",
+            help="Parallel model-backed probe workers (deterministic result order).",
+        ),
+    ] = 1,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--cache-dir",
+            help="Optional directory for model completion cache (#100).",
+        ),
+    ] = None,
     json_output: Annotated[
         Path | None,
         typer.Option("--json-output", help="Write a JSON probe report."),
@@ -448,6 +462,9 @@ def probe(
         raise typer.Exit(code=2)
     if trials < 1:
         console.print("[red]--trials must be >= 1[/red]")
+        raise typer.Exit(code=2)
+    if workers < 1:
+        console.print("[red]--workers must be >= 1[/red]")
         raise typer.Exit(code=2)
 
     use_model = model or trials > 1
@@ -495,6 +512,11 @@ def probe(
     runner = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
     require_approval = not allow_unapproved
     cfg = RunnerConfig(seed=seed)
+    probe_cache = None
+    if cache_dir is not None:
+        from tool_semantics.cache import ProbeCompletionCache
+
+        probe_cache = ProbeCompletionCache(cache_dir)
     if trials > 1:
         stability = run_probe_trials(
             snap,
@@ -504,6 +526,8 @@ def probe(
             config=cfg,
             require_approval=require_approval,
             seed=seed,
+            workers=workers,
+            cache=probe_cache,
         )
         failed = [
             item
@@ -548,6 +572,8 @@ def probe(
         runner,
         config=cfg,
         require_approval=require_approval,
+        workers=workers,
+        cache=probe_cache,
     )
     table = Table(title=f"Model-backed probes: {snap.server_name}")
     table.add_column("Probe")
@@ -577,6 +603,8 @@ def probe(
             "mode": "model",
             "passed": model_report.passed,
             "opt_in": model_report.opt_in,
+            "cache": model_report.cache,
+            "cost": model_report.cost,
             "results": [item.model_dump(mode="json") for item in model_report.results],
         }
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

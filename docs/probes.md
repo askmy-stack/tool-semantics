@@ -25,6 +25,11 @@ tool-semantics probe .tool-semantics/v1.json \
 tool-semantics probe .tool-semantics/v1.json \
   --probes examples/probes/github_v1_offline.json \
   --trials 4 --seed 1
+
+# Parallel workers + completion cache (#100)
+tool-semantics probe .tool-semantics/v1.json \
+  --probes examples/probes/github_v1_offline.json \
+  --model --workers 4 --cache-dir .tool-semantics/cache
 ```
 
 Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
