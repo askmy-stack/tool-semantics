@@ -54,7 +54,7 @@ flowchart TB
 | **Scanner** (`scanner.py`) | Import a static interface / manifest and emit a versioned snapshot |
 | **Live MCP capture** (`mcp_capture.py`) | Capture tools over **stdio**, **Streamable HTTP**, or **legacy SSE**; negotiate protocol version; auth headers never enter snapshot metadata |
 | **Models** (`models.py`) | Normalized server metadata and tool contracts (`InterfaceSnapshot`) |
-| **Diff engine** (`diff.py`) | Stable change codes + severity levels |
+| **Diff engine** (`diff.py`) | Stable change codes + severity levels; multi-signal rename confidence (`rename.py`) |
 | **Probes** (`probes.py`) | Offline + opt-in model-backed probes, metrics, and stability trials |
 | **Model runner** (`runner.py`) | Provider-neutral runner interface + OpenAI-compatible HTTP adapter (no required SDK) |
 | **Release policy** (`policy.py`) | Configurable CI gate thresholds for severity |

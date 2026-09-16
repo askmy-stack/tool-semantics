@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from tool_semantics import __version__
-from tool_semantics.config import apply_ignore_rules, load_config
+from tool_semantics.config import ToolSemanticsConfig, apply_ignore_rules, load_config
 from tool_semantics.diff import compare_snapshots
 from tool_semantics.mcp_capture import (
     McpCaptureError,
@@ -68,6 +68,20 @@ def main(
 def _log_verbose(verbose: bool, message: str) -> None:
     if verbose:
         err_console.print(f"[dim]{message}[/dim]")
+
+
+def _resolve_rename_embeddings(config_data: ToolSemanticsConfig) -> object | None:
+    if not config_data.diff.use_embeddings:
+        return None
+    from tool_semantics.embeddings import get_registered_factory
+
+    factory = get_registered_factory()
+    if factory is None:
+        raise ValueError(
+            "diff.use_embeddings=true but no embedding provider is registered. "
+            "Call tool_semantics.embeddings.register_provider(...)."
+        )
+    return factory()
 
 
 def _parse_headers(raw_headers: list[str] | None) -> dict[str, str]:
@@ -656,7 +670,14 @@ def compare(
             f"Tools: baseline={len(baseline_snap.tools)} candidate={len(candidate_snap.tools)}",
         )
         report = apply_ignore_rules(
-            compare_snapshots(baseline_snap, candidate_snap),
+            compare_snapshots(
+                baseline_snap,
+                candidate_snap,
+                detect_renames=config_data.diff.detect_renames,
+                rename_threshold=config_data.diff.rename_threshold,
+                collapse_renames=config_data.diff.collapse_renames,
+                rename_embeddings=_resolve_rename_embeddings(config_data),
+            ),
             config_data,
         )
     except (ManifestError, FileNotFoundError, ValueError) as exc:

@@ -19,9 +19,20 @@ class IgnoreRules:
 
 
 @dataclass(frozen=True)
+class DiffSettings:
+    """Structural / semantic diff knobs (rename confidence, collapse policy)."""
+
+    detect_renames: bool = True
+    rename_threshold: float = 0.55
+    collapse_renames: bool = False
+    use_embeddings: bool = False
+
+
+@dataclass(frozen=True)
 class ToolSemanticsConfig:
     ignore: IgnoreRules = field(default_factory=IgnoreRules)
     policy: ReleasePolicy = field(default_factory=ReleasePolicy)
+    diff: DiffSettings = field(default_factory=DiffSettings)
 
 
 def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
@@ -30,6 +41,25 @@ def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"Config field '{field_name}' must be an array of strings")
     return tuple(value)
+
+
+def _as_bool(value: Any, field_name: str, default: bool) -> bool:
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"Config field '{field_name}' must be a boolean")
+    return value
+
+
+def _as_float(value: Any, field_name: str, default: float) -> float:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"Config field '{field_name}' must be a number")
+    number = float(value)
+    if number < 0.0 or number > 1.0:
+        raise ValueError(f"Config field '{field_name}' must be in [0, 1]")
+    return number
 
 
 def _parse_policy(raw: dict[str, Any]) -> ReleasePolicy:
@@ -43,6 +73,15 @@ def _parse_policy(raw: dict[str, Any]) -> ReleasePolicy:
             "policy.fail_at_or_above must be one of: info, warning, breaking, critical, none"
         ) from exc
     return ReleasePolicy(fail_at_or_above=severity)
+
+
+def _parse_diff(raw: dict[str, Any]) -> DiffSettings:
+    return DiffSettings(
+        detect_renames=_as_bool(raw.get("detect_renames"), "diff.detect_renames", True),
+        rename_threshold=_as_float(raw.get("rename_threshold"), "diff.rename_threshold", 0.55),
+        collapse_renames=_as_bool(raw.get("collapse_renames"), "diff.collapse_renames", False),
+        use_embeddings=_as_bool(raw.get("use_embeddings"), "diff.use_embeddings", False),
+    )
 
 
 def load_config(path: Path | None = None) -> ToolSemanticsConfig:
@@ -69,12 +108,18 @@ def load_config(path: Path | None = None) -> ToolSemanticsConfig:
         policy_raw = {}
     if not isinstance(policy_raw, dict):
         raise ValueError("Config field 'policy' must be a table")
+    diff_raw = raw.get("diff", {})
+    if diff_raw is None:
+        diff_raw = {}
+    if not isinstance(diff_raw, dict):
+        raise ValueError("Config field 'diff' must be a table")
     return ToolSemanticsConfig(
         ignore=IgnoreRules(
             codes=_as_str_tuple(ignore_raw.get("codes"), "ignore.codes"),
             subjects=_as_str_tuple(ignore_raw.get("subjects"), "ignore.subjects"),
         ),
         policy=_parse_policy(policy_raw),
+        diff=_parse_diff(diff_raw),
     )
 
 

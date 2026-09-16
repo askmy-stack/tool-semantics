@@ -89,24 +89,13 @@ def _detect_renames(
     *,
     threshold: float = 0.55,
 ) -> list[tuple[str, str]]:
-    """Greedy one-to-one rename matches above a similarity threshold."""
-    pairs: list[tuple[float, str, str]] = []
-    for old_name, old_tool in removed.items():
-        for new_name, new_tool in added.items():
-            score = _tool_similarity(old_tool, new_tool)
-            if score >= threshold:
-                pairs.append((score, old_name, new_name))
-    pairs.sort(reverse=True)
-    matched_old: set[str] = set()
-    matched_new: set[str] = set()
-    renames: list[tuple[str, str]] = []
-    for _, old_name, new_name in pairs:
-        if old_name in matched_old or new_name in matched_new:
-            continue
-        matched_old.add(old_name)
-        matched_new.add(new_name)
-        renames.append((old_name, new_name))
-    return renames
+    """Backward-compatible wrapper returning (old, new) pairs only."""
+    from tool_semantics.rename import detect_rename_candidates
+
+    return [
+        (candidate.old_name, candidate.new_name)
+        for candidate in detect_rename_candidates(removed, added, threshold=threshold)
+    ]
 
 
 def _append_type_transition(
@@ -388,6 +377,9 @@ def compare_snapshots(
     candidate: InterfaceSnapshot,
     *,
     detect_renames: bool = True,
+    rename_threshold: float = 0.55,
+    collapse_renames: bool = False,
+    rename_embeddings: object | None = None,
 ) -> CompatibilityReport:
     report = CompatibilityReport(
         baseline=baseline.server_version or baseline.server_name,
@@ -398,30 +390,39 @@ def compare_snapshots(
 
     removed_names = before.keys() - after.keys()
     added_names = after.keys() - before.keys()
-    renames: list[tuple[str, str]] = []
+    rename_candidates = []
     if detect_renames and removed_names and added_names:
-        renames = _detect_renames(
+        from tool_semantics.rename import detect_rename_candidates, format_rename_message
+
+        rename_candidates = detect_rename_candidates(
             {name: before[name] for name in removed_names},
             {name: after[name] for name in added_names},
+            threshold=rename_threshold,
+            embeddings=rename_embeddings,  # type: ignore[arg-type]
         )
-    renamed_from = {old for old, _ in renames}
-    renamed_to = {new for _, new in renames}
-
-    for old_name, new_name in renames:
-        report.changes.append(
-            Change(
-                severity=Severity.WARNING,
-                code="tool.renamed",
-                subject=f"{old_name}->{new_name}",
-                message=(
-                    f"Tool '{old_name}' appears renamed to '{new_name}' "
-                    "(parameter/description similarity heuristic)."
-                ),
+        for candidate_rename in rename_candidates:
+            report.changes.append(
+                Change(
+                    severity=Severity.WARNING,
+                    code="tool.renamed",
+                    subject=f"{candidate_rename.old_name}->{candidate_rename.new_name}",
+                    message=format_rename_message(candidate_rename),
+                )
             )
-        )
-        _compare_tool_pair(report, new_name, before[old_name], after[new_name])
+            _compare_tool_pair(
+                report,
+                candidate_rename.new_name,
+                before[candidate_rename.old_name],
+                after[candidate_rename.new_name],
+            )
+    renamed_from = {item.old_name for item in rename_candidates}
+    renamed_to = {item.new_name for item in rename_candidates}
 
-    for name in sorted(removed_names - renamed_from):
+    # Default: do not suppress removed/added (#80). Opt in via collapse_renames.
+    suppress_from = renamed_from if collapse_renames else set()
+    suppress_to = renamed_to if collapse_renames else set()
+
+    for name in sorted(removed_names - suppress_from):
         report.changes.append(
             Change(
                 severity=Severity.BREAKING,
@@ -430,7 +431,7 @@ def compare_snapshots(
                 message=f"Tool '{name}' was removed.",
             )
         )
-    for name in sorted(added_names - renamed_to):
+    for name in sorted(added_names - suppress_to):
         report.changes.append(
             Change(
                 severity=Severity.INFO,

@@ -9,7 +9,7 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `tool.added` | info | A new tool appeared; selection-collision testing is still pending |
 | `tool.description_changed` | warning | Description text changed; model tool-selection may drift |
 | `tool.risk_changed` | warning / critical | Declared risk level changed (critical when escalating from `read_only`) |
-| `tool.renamed` | warning | Heuristic match suggests a tool was renamed (not a hard remove+add) |
+| `tool.renamed` | warning | Multi-signal rename candidate (confidence LOW/MEDIUM/HIGH); does not suppress remove/add unless `diff.collapse_renames` |
 | `tool.output_schema_added` | info | A tool gained an `outputSchema` |
 | `tool.output_schema_removed` | breaking | A tool lost its `outputSchema` |
 | `tool.output_schema_changed` | breaking | A tool's `outputSchema` changed |

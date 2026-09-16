@@ -21,3 +21,9 @@ subjects = [
 # Fail when any remaining change is at or above this severity.
 # info | warning | breaking | critical | none
 fail_at_or_above = "breaking"
+
+[diff]
+detect_renames = true
+rename_threshold = 0.55
+# collapse_renames = false
+# use_embeddings = false
