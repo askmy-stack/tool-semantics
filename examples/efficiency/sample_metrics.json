@@ -1,0 +1,26 @@
+{
+  "baseline": {
+    "label": "github-v1-suite",
+    "tool_call_count": 8,
+    "failed_call_count": 0,
+    "retry_count": 0,
+    "latency_ms": 100,
+    "wall_clock_ms": 1200,
+    "prompt_tokens": 4000,
+    "completion_tokens": 800,
+    "model_cost": 0.02,
+    "currency": "USD"
+  },
+  "candidate": {
+    "label": "github-v2-suite",
+    "tool_call_count": 31,
+    "failed_call_count": 2,
+    "retry_count": 4,
+    "latency_ms": 194,
+    "wall_clock_ms": 2800,
+    "prompt_tokens": 9200,
+    "completion_tokens": 1400,
+    "model_cost": 0.055,
+    "currency": "USD"
+  }
+}

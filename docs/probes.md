@@ -64,6 +64,12 @@ probe = Probe(
 | `TOOL_SEMANTICS_MODEL` / `OPENAI_MODEL` | Model id (default `gpt-4o-mini`) |
 | `TOOL_SEMANTICS_BASE_URL` / `OPENAI_BASE_URL` | OpenAI-compatible base URL |
 
+## Efficiency (informational)
+
+When baseline/candidate run metrics are available, attach an
+[`## EFFICIENCY`](efficiency.md) section via `append_efficiency_section`.
+Efficiency regressions never flip probe/compare pass/fail on their own.
+
 ## Safety
 
 - Do not embed secrets in probe intents or expected arguments.
