@@ -20,8 +20,8 @@ across five compatibility layers:
 5. Intent / side effects — did risk or confirmation needs change?
 
 Status: layers 1–2 are CI-gateable; layers 3–5 are covered by offline probes
-plus **opt-in** model-backed probes (library). Live capture supports stdio,
-Streamable HTTP, and legacy SSE.
+plus **opt-in** model-backed probes (CLI + compare/eval gates). Live capture
+supports stdio, Streamable HTTP, and legacy SSE.
 
 ## Repo layout
 
@@ -30,6 +30,8 @@ Streamable HTTP, and legacy SSE.
 - `src/tool_semantics/diff.py` — structural comparison engine
 - `src/tool_semantics/models.py` — snapshot/report data models
 - `src/tool_semantics/probes.py` — offline + opt-in model-backed probe harness
+- `src/tool_semantics/probe_gate.py` — compare/eval probe thresholds for CI
+- `src/tool_semantics/eval_report.py` — unified eval sections + FINAL RESULT
 - `src/tool_semantics/runner.py` — provider-neutral model runner interface
 - `src/tool_semantics/adapters.py` — migration adapters (tool alias/arg translation)
 - `src/tool_semantics/policy.py` — release-policy enforcement knobs
@@ -52,13 +54,15 @@ ruff check .
 ruff format --check .
 
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
+tool-semantics eval --baseline .tool-semantics/v1.json --candidate .tool-semantics/v2.json \
+  --probes examples/probes/github_v1_offline.json --markdown-output report.md
 tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json --markdown-output report.md
 tool-semantics capture-mcp -o snap.json https://example.com/mcp
 ```
 
 ## Current priorities
 
-1. **P0** — Probe CLI (#57) → CI probe gates (#58) → unified `eval` (#76).
+1. **P0** — Probe CLI (#57 ✓) → CI probe gates (#58) → unified `eval` (#76).
 2. **P1** — Final-state / reliability / protocol diffs (#105, #106, #75) and scorecard (#77).
 3. Maintainer: apply GitHub priority labels (#118) — agents cannot label via API.
 4. Full prioritized backlog: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md).

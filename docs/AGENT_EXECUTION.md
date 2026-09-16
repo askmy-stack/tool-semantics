@@ -38,7 +38,7 @@ Positioning (use consistently):
 | --- | --- | --- | --- |
 | Protocol/capability diff | Not compared | #75 | P1 |
 | Probes in CLI/CI | Compare/Action probe gates | #58 | P0 |
-| Unified `eval` | Missing | #76 | P0 |
+| Unified `eval` | CLI + unified report | #76 | P0 |
 | Final-state verifier | Missing | #105 | P1 |
 | pass@k / pass^k | Library trials only | #106 | P1 |
 | `behavior.*` codes | Deferred | #61 | P1 |
@@ -141,7 +141,7 @@ SaaS, auth/billing, large dashboards, generic agent frameworks, unrelated RAG/ch
 MODERNIZE → SIMPLIFY → EVALUATE REAL BEHAVIOR → PROVE RESULTS
 ```
 
-1. **P0** Finish M7 merge (#59/#73/#74) → label backlog (#118) → #57 → #58 → #76
+1. **P0** Finish M7 merge (#59/#73/#74) → label backlog (#118) → #57 ✓ → #58 → #76
 2. **P1** #75, #105, #106, #61, #77/#78, then semantic/traces/safety (#79–#90, #107–#108)
 3. **P2** Embeddings/horizon/integrity/efficiency/DX (#109–#114, #117, #96–#98)
 4. **P3** Research polish (#115–#116, #95, #99–#100)
