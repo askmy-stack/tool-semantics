@@ -12,12 +12,31 @@ askmy-stack/tool-semantics/.github/actions/compare
 ## Versioning the Action
 
 Pin the composite Action to a **release tag** (or commit SHA) so consumer CI stays
-reproducible. Tags follow the package version (`v0.4.0`, …). A floating major pin
-such as `@v0` is fine once a `v0` moving tag exists; prefer an exact tag for
-production workflows.
+reproducible. Tags follow the package version (`v0.4.0`, …).
 
-`@main` tracks the tip of the default branch and **may break** without notice —
-use it only for local experiments.
+| Pin | Stability | When to use |
+| --- | --- | --- |
+| `@v0.4.0` (exact) | Fixed | **Preferred** for production workflows |
+| `@v0` (floating major) | Moves on each `v0.x.y` release | Convenience; still receives breaking 0.x changes |
+| `@main` | Tip of default branch | Local experiments only — **may break** without notice |
+
+### Maintaining the floating `@v0` tag
+
+On every `v0.x.y` GitHub Release, move the lightweight `v0` tag to the same
+commit as the exact version tag (force-update). The `Publish to PyPI` workflow
+does this automatically after a successful release publish when the tag name
+matches `v0.*`.
+
+Maintainer one-liner (if you need to repair the tag outside CI):
+
+```bash
+git fetch origin tag v0.4.0
+git tag -f v0 v0.4.0
+git push origin refs/tags/v0 --force
+```
+
+`@v0` can still receive **breaking 0.x** changes — prefer `@v0.4.0` (or newer
+exact tags) when reproducibility matters.
 
 After each GitHub Release, the tagged tree includes this composite Action, so
 `uses: askmy-stack/tool-semantics/.github/actions/compare@vX.Y.Z` resolves from
@@ -45,6 +64,7 @@ jobs:
         run: |
           pip install "tool-semantics==0.4.0"
           tool-semantics capture manifests/candidate.json -o .tool-semantics/candidate.json
+      # Preferred: exact release pin
       - uses: askmy-stack/tool-semantics/.github/actions/compare@v0.4.0
         with:
           baseline: .tool-semantics/baselines/github.json
@@ -52,6 +72,15 @@ jobs:
           policy: strict
           comment-on-pr: "true"
           upload-artifacts: "true"
+```
+
+Convenience pin (receives breaking 0.x updates):
+
+```yaml
+      - uses: askmy-stack/tool-semantics/.github/actions/compare@v0
+        with:
+          baseline: .tool-semantics/baselines/github.json
+          candidate: .tool-semantics/candidate.json
 ```
 
 ## Inputs
