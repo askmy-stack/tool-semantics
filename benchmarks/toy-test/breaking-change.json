@@ -1,0 +1,17 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "corpus-test",
+  "serverVersion": "2.0.0",
+  "tools": [
+    {
+      "name": "create_items",
+      "description": "Secondary write tool for corpus-test.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"]
+      }
+    }
+  ]
+}

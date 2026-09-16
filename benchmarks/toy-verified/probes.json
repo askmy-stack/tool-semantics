@@ -1,0 +1,12 @@
+{
+  "probes": [
+    {
+      "id": "primary-read",
+      "intent": "run the primary read tool",
+      "kind": "positive",
+      "expected_tool": "list_entities",
+      "required_params": ["query"],
+      "max_risk": "read_only"
+    }
+  ]
+}

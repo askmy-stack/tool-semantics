@@ -1,0 +1,17 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "corpus-verified",
+  "serverVersion": "2.0.0",
+  "tools": [
+    {
+      "name": "mutate_entities",
+      "description": "Secondary write tool for corpus-verified.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"]
+      }
+    }
+  ]
+}

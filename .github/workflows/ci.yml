@@ -11,6 +11,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Default corpus partition for CI (#116). VERIFIED is release/research-only.
+      TOOL_SEMANTICS_CORPUS_SPLIT: test
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]

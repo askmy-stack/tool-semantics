@@ -1,0 +1,27 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "corpus-dev",
+  "serverVersion": "1.0.0",
+  "tools": [
+    {
+      "name": "read_records",
+      "description": "Primary read tool for corpus-dev.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "write_records",
+      "description": "Secondary write tool for corpus-dev.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"]
+      }
+    }
+  ]
+}
