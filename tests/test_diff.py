@@ -47,6 +47,9 @@ def test_markdown_report_includes_summary() -> None:
     assert "# Tool-Semantics report:" in markdown
     assert "**Result:** `breaking`" in markdown
     assert "| Severity | Count |" in markdown
+    assert "## Tools" in markdown
+    assert "## Prompts" in markdown
+    assert "## Resources" in markdown
 
 
 def test_counts_by_severity() -> None:
@@ -121,3 +124,35 @@ def test_detects_parameter_default_added_and_removed() -> None:
         change.code == "parameter.default_changed" and "added" in change.message
         for change in report_added.changes
     )
+
+
+def test_prompt_and_resource_structural_diffs() -> None:
+    baseline = capture_manifest(Path("examples/mcp_prompts_resources_v1.json"))
+    candidate = capture_manifest(Path("examples/mcp_prompts_resources_v2.json"))
+    assert [p.name for p in baseline.prompts] == ["draft_reply", "summarize"]
+    assert [r.uri for r in baseline.resources] == ["file:///tmp/readme.md", "memo://notes"]
+
+    report = compare_snapshots(baseline, candidate)
+    codes = {change.code for change in report.changes}
+    assert "prompt.renamed" in codes  # summarize -> summarize_text
+    assert "prompt.removed" in codes  # draft_reply
+    assert "prompt.added" in codes  # translate
+    assert "prompt.argument.became_required" in codes  # style
+    assert "prompt.argument.added" in codes  # max_words
+    assert "resource.renamed" in codes  # memo://notes -> memo://personal-notes
+    assert "resource.mime_type_changed" in codes
+    assert "resource.description_changed" in codes
+    assert not report.is_compatible
+
+    markdown = render_markdown(report)
+    assert "## Prompts" in markdown
+    assert "## Resources" in markdown
+    assert "`prompt.renamed`" in markdown
+    assert "`resource.mime_type_changed`" in markdown
+
+
+def test_prompt_argument_normalization_is_stable() -> None:
+    baseline = capture_manifest(Path("examples/mcp_prompts_resources_v1.json"))
+    # Arguments should be sorted by name regardless of manifest order.
+    summarize = next(prompt for prompt in baseline.prompts if prompt.name == "summarize")
+    assert [arg["name"] for arg in summarize.arguments] == ["style", "text"]

@@ -25,6 +25,22 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `parameter.schema_changed` | breaking | Parameter JSON Schema changed (excluding `default`; non-enum or unstructured) |
 | `parameter.enum_values_removed` | breaking | One or more enum values were removed |
 | `parameter.enum_values_added` | info | One or more enum values were added |
+| `prompt.removed` | breaking | A prompt present in the baseline is absent in the candidate |
+| `prompt.added` | info | A new prompt appeared |
+| `prompt.renamed` | warning | Heuristic match suggests a prompt was renamed |
+| `prompt.description_changed` | warning | Prompt description text changed |
+| `prompt.argument.removed` | breaking | A prompt argument was removed |
+| `prompt.argument.added` | info | An optional prompt argument was added |
+| `prompt.argument.added_required` | breaking | A required prompt argument was added |
+| `prompt.argument.became_required` | breaking | An optional prompt argument became required |
+| `prompt.argument.description_changed` | warning | Prompt argument description changed |
+| `prompt.argument.schema_changed` | breaking | Prompt argument metadata/schema changed |
+| `resource.removed` | breaking | A resource URI present in the baseline is absent in the candidate |
+| `resource.added` | info | A new resource URI appeared |
+| `resource.renamed` | warning | Heuristic match suggests a resource was relocated (URI change) |
+| `resource.name_changed` | warning | Resource display name changed |
+| `resource.description_changed` | warning | Resource description changed |
+| `resource.mime_type_changed` | breaking | Resource MIME type changed |
 
 ## Notes for contributors
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from tool_semantics.diff import CompatibilityReport, Severity
+from tool_semantics.diff import Change, CompatibilityReport, Severity
 from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
 
 
@@ -31,18 +31,33 @@ def render_markdown(report: CompatibilityReport) -> str:
         lines.append("")
         return "\n".join(lines)
 
-    lines.extend(
-        [
-            "| Severity | Code | Subject | Change |",
-            "| --- | --- | --- | --- |",
-        ]
-    )
-    for change in report.changes:
-        message = change.message.replace("|", "\\|")
-        lines.append(
-            f"| `{change.severity.value}` | `{change.code}` | `{change.subject}` | {message} |"
+    tool_changes = [c for c in report.changes if not c.code.startswith(("prompt.", "resource."))]
+    prompt_changes = [c for c in report.changes if c.code.startswith("prompt.")]
+    resource_changes = [c for c in report.changes if c.code.startswith("resource.")]
+
+    def _append_section(title: str, changes: list[Change]) -> None:
+        lines.append(f"## {title}")
+        lines.append("")
+        if not changes:
+            lines.append("_No changes._")
+            lines.append("")
+            return
+        lines.extend(
+            [
+                "| Severity | Code | Subject | Change |",
+                "| --- | --- | --- | --- |",
+            ]
         )
-    lines.append("")
+        for change in changes:
+            message = change.message.replace("|", "\\|")
+            lines.append(
+                f"| `{change.severity.value}` | `{change.code}` | `{change.subject}` | {message} |"
+            )
+        lines.append("")
+
+    _append_section("Tools", tool_changes)
+    _append_section("Prompts", prompt_changes)
+    _append_section("Resources", resource_changes)
     return "\n".join(lines)
 
 

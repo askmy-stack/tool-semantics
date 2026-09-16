@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
+from tool_semantics.models import (
+    InterfaceSnapshot,
+    PromptContract,
+    ResourceContract,
+    ToolContract,
+    ToolParameter,
+)
 
 
 class ManifestError(ValueError):
@@ -34,6 +40,80 @@ def _normalize_parameters(input_schema: dict[str, Any]) -> list[ToolParameter]:
             )
         )
     return sorted(parameters, key=lambda parameter: parameter.name)
+
+
+def normalize_prompt_arguments(raw_arguments: Any, *, prompt_name: str) -> list[dict[str, Any]]:
+    """Normalize MCP prompt arguments for stable compare (sorted by name)."""
+    if raw_arguments is None:
+        return []
+    if not isinstance(raw_arguments, list):
+        raise ManifestError(f"Prompt '{prompt_name}' arguments must be an array")
+    normalized: list[dict[str, Any]] = []
+    for item in raw_arguments:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            raise ManifestError(
+                f"Each argument on prompt '{prompt_name}' must contain a string 'name'"
+            )
+        entry: dict[str, Any] = {"name": item["name"]}
+        if "description" in item and item["description"] is not None:
+            entry["description"] = str(item["description"])
+        if "required" in item:
+            entry["required"] = bool(item["required"])
+        # Preserve other JSON-serializable keys for forward compatibility.
+        for key, value in item.items():
+            if key in {"name", "description", "required"}:
+                continue
+            entry[key] = value
+        normalized.append(entry)
+    return sorted(normalized, key=lambda arg: str(arg["name"]))
+
+
+def _normalize_prompts(raw_prompts: Any) -> list[PromptContract]:
+    if raw_prompts is None:
+        return []
+    if not isinstance(raw_prompts, list):
+        raise ManifestError("'prompts' must be an array")
+    prompts: list[PromptContract] = []
+    for raw in raw_prompts:
+        if not isinstance(raw, dict) or not isinstance(raw.get("name"), str):
+            raise ManifestError("Each prompt must contain a string 'name'")
+        prompts.append(
+            PromptContract(
+                name=raw["name"],
+                description=str(raw.get("description", "")),
+                arguments=normalize_prompt_arguments(raw.get("arguments"), prompt_name=raw["name"]),
+            )
+        )
+    return sorted(prompts, key=lambda prompt: prompt.name)
+
+
+def _normalize_resources(raw_resources: Any) -> list[ResourceContract]:
+    if raw_resources is None:
+        return []
+    if not isinstance(raw_resources, list):
+        raise ManifestError("'resources' must be an array")
+    resources: list[ResourceContract] = []
+    for raw in raw_resources:
+        if not isinstance(raw, dict):
+            raise ManifestError("Each resource must be an object")
+        uri = raw.get("uri")
+        if not isinstance(uri, str) or not uri:
+            raise ManifestError("Each resource must contain a string 'uri'")
+        name = raw.get("name")
+        if not isinstance(name, str) or not name:
+            name = uri
+        mime = raw.get("mimeType", raw.get("mime_type"))
+        if mime is not None and not isinstance(mime, str):
+            raise ManifestError(f"Resource '{uri}' mimeType must be a string")
+        resources.append(
+            ResourceContract(
+                uri=uri,
+                name=name,
+                description=str(raw.get("description", "")),
+                mime_type=mime,
+            )
+        )
+    return sorted(resources, key=lambda resource: resource.uri)
 
 
 def capture_manifest(path: Path) -> InterfaceSnapshot:
@@ -73,6 +153,8 @@ def capture_manifest(path: Path) -> InterfaceSnapshot:
         server_name=str(raw.get("serverName", path.stem)),
         server_version=raw.get("serverVersion"),
         tools=sorted(tools, key=lambda tool: tool.name),
+        prompts=_normalize_prompts(raw.get("prompts")),
+        resources=_normalize_resources(raw.get("resources")),
         metadata=raw.get("metadata", {}),
     )
 

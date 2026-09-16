@@ -45,7 +45,7 @@ Positioning (use consistently):
 | No-tool / workflows | Missing | #107, #108 | P1 |
 | Trace replay | Missing | #83, #84 | P1 |
 | Safety scope/side-effects | Single `RiskLevel` | #87 | P1 |
-| Prompt/resource codes | Thin compare | #90 | P1 |
+| Prompt/resource codes | Diff + report sections | #90 | P1 |
 
 ## Prioritized backlog
 

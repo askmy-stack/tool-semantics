@@ -22,7 +22,7 @@ from tool_semantics.models import (
     ToolContract,
 )
 from tool_semantics.redact import redact_snapshot
-from tool_semantics.scanner import ManifestError, _normalize_parameters
+from tool_semantics.scanner import ManifestError, _normalize_parameters, normalize_prompt_arguments
 
 # Auth / secret header names must never land in snapshot metadata.
 _AUTH_HEADER_NAMES = frozenset(
@@ -163,12 +163,14 @@ def _prompt_from_mcp(raw: dict[str, Any]) -> PromptContract:
     name = raw.get("name")
     if not isinstance(name, str) or not name:
         raise McpCaptureError("MCP prompt is missing a string name")
-    raw_arguments = raw.get("arguments")
-    arguments: list[Any] = raw_arguments if isinstance(raw_arguments, list) else []
+    try:
+        arguments = normalize_prompt_arguments(raw.get("arguments"), prompt_name=name)
+    except ManifestError as exc:
+        raise McpCaptureError(str(exc)) from exc
     return PromptContract(
         name=name,
         description=str(raw.get("description", "")),
-        arguments=[arg for arg in arguments if isinstance(arg, dict)],
+        arguments=arguments,
     )
 
 
