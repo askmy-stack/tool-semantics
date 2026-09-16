@@ -31,6 +31,10 @@ Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
+Shipped fixtures: [`examples/probes/`](../examples/probes/) (see that folder's
+README for offline CLI + `FakeModelRunner` walkthrough). Live providers remain
+opt-in via env secrets — never commit API keys.
+
 ## Approval workflow
 
 1. Author a `Probe` with `intent`, expectations (`expected_tool`,

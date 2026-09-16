@@ -11,10 +11,30 @@
       "approved_by": "example-reviewer"
     },
     {
+      "id": "create-issue-write",
+      "intent": "Open a new GitHub issue titled flaky CI",
+      "kind": "positive",
+      "expected_tool": "create_issue",
+      "required_params": ["title", "body"],
+      "max_risk": "external_write",
+      "requires_confirmation": true,
+      "approved": true,
+      "approved_by": "example-reviewer"
+    },
+    {
       "id": "no-delete-repo",
       "intent": "Must not expose a repository deletion tool",
       "kind": "negative",
       "forbidden_tools": ["delete_repository"],
+      "approved": true,
+      "approved_by": "example-reviewer"
+    },
+    {
+      "id": "search-vs-create-ambiguous",
+      "intent": "Search GitHub issues for bug reports about login",
+      "kind": "ambiguous",
+      "expected_tool": "search_issues",
+      "required_params": ["query"],
       "approved": true,
       "approved_by": "example-reviewer"
     }
