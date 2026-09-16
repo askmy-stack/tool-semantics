@@ -31,6 +31,32 @@ Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
+## No-tool probes (#107)
+
+Some intents must **not** call tools even when a catalog is available
+(example: tools are `send_email` / `delete_email`, user asks “What is 2 + 2?”).
+
+```yaml
+- id: math-no-tool
+  intent: "What is 2 + 2?"
+  kind: no_tool
+  approved: true
+```
+
+| Mode | Behavior |
+| --- | --- |
+| Offline | Structural only — validates the probe; scoring abstention needs `--model` |
+| Model | Pass when the runner returns **no** tool call; fail with outcome `unnecessary_tool` when a tool is selected |
+
+Unnecessary **write/destructive** tool calls are flagged `high_severity_unnecessary`
+and called out in the report’s **No-tool failures** section (distinct from
+`wrong_tool` selection).
+
+Metrics: `no_tool_correctness_rate`, `unnecessary_tool_call_rate`,
+`unnecessary_high_severity_rate`.
+
+Fixture: `examples/probes/no_tool_math.json`.
+
 ## Approval workflow
 
 1. Author a `Probe` with `intent`, expectations (`expected_tool`,

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "math-no-tool",
+    "intent": "What is 2 + 2?",
+    "kind": "no_tool",
+    "approved": true,
+    "approved_by": "fixture"
+  }
+]
