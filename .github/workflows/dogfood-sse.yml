@@ -1,0 +1,30 @@
+# Optional live SSE dogfood capture (#65).
+# Skips the job when TOOL_SEMANTICS_DOGFOOD_SSE_URL secret is unset.
+
+name: Dogfood SSE
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: ${{ vars.ENABLE_DOGFOOD_SSE == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Live SSE capture (integration)
+        env:
+          TOOL_SEMANTICS_DOGFOOD_SSE_URL: ${{ secrets.TOOL_SEMANTICS_DOGFOOD_SSE_URL }}
+          TOOL_SEMANTICS_DOGFOOD_SSE_TOKEN: ${{ secrets.TOOL_SEMANTICS_DOGFOOD_SSE_TOKEN }}
+        run: pytest -m integration tests/test_dogfood_sse.py
