@@ -35,3 +35,17 @@ supported generations. Extend `SUPPORTED_PROTOCOL_VERSIONS` in
 Authentication failures (`401`/`403`) and unsupported protocol versions do
 **not** fall back during auto-detect. Network / 404 / 405 / malformed responses
 may fall back to legacy SSE per MCP client backwards-compatibility guidance.
+
+## Error categories
+
+Remote capture errors are prefixed for automation and clearer CLI UX:
+
+| Prefix | Meaning |
+| --- | --- |
+| `[authentication]` | HTTP 401/403 or missing credentials |
+| `[network]` | DNS / connection refused / transport errors |
+| `[timeout]` | Deadline exceeded |
+| `[protocol]` | HTTP 400 or other protocol-level HTTP failures |
+| `[unsupported]` | Negotiated `protocolVersion` not in supported set |
+| `[invalid_response]` | Empty / non-JSON / mismatched JSON-RPC body |
+| `[unsupported_server]` | 404/405 endpoint, or both HTTP+SSE paths failed |

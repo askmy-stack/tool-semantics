@@ -51,7 +51,17 @@ PREFERRED_PROTOCOL_HTTP = "2025-03-26"
 
 
 class McpCaptureError(ManifestError):
-    """Raised when a live MCP capture fails."""
+    """Raised when a live MCP capture fails.
+
+    Message prefix convention (for CLI/automation):
+    ``[authentication]``, ``[network]``, ``[protocol]``, ``[unsupported]``,
+    ``[invalid_response]``, ``[timeout]``, ``[unsupported_server]``.
+    """
+
+
+def _capture_error(kind: str, message: str) -> McpCaptureError:
+    """Build a categorized capture error (see ``McpCaptureError`` prefixes)."""
+    return McpCaptureError(f"[{kind}] {message}")
 
 
 def _read_message(stdout: Any, timeout: float) -> dict[str, Any]:
@@ -193,10 +203,11 @@ def _negotiated_protocol_version(init: Any) -> str:
         raise McpCaptureError("initialize result missing protocolVersion string")
     if version not in SUPPORTED_PROTOCOL_VERSIONS:
         supported = ", ".join(sorted(SUPPORTED_PROTOCOL_VERSIONS))
-        raise McpCaptureError(
+        raise _capture_error(
+            "unsupported",
             f"Unsupported MCP protocol version {version!r}. "
             f"tool-semantics supports: {supported}. "
-            "Upgrade tool-semantics or use a compatible MCP server."
+            "Upgrade tool-semantics or use a compatible MCP server.",
         )
     return version
 
@@ -695,8 +706,9 @@ class _StreamableHttpSession:
 
     def _classify_http_error(self, exc: urllib.error.HTTPError, *, method: str) -> McpCaptureError:
         if exc.code in {401, 403}:
-            return McpCaptureError(
-                f"Streamable HTTP authentication/HTTP error {exc.code} for {method}: {exc.reason}"
+            return _capture_error(
+                "authentication",
+                f"Streamable HTTP authentication/HTTP error {exc.code} for {method}: {exc.reason}",
             )
         if exc.code == 400:
             body = ""
@@ -705,11 +717,23 @@ class _StreamableHttpSession:
             except Exception:  # noqa: BLE001
                 body = ""
             detail = f" ({body})" if body else ""
-            return McpCaptureError(
-                f"Streamable HTTP protocol/HTTP error 400 for {method}: {exc.reason}{detail}"
+            return _capture_error(
+                "protocol",
+                f"Streamable HTTP protocol/HTTP error 400 for {method}: {exc.reason}{detail}",
             )
-        return McpCaptureError(
-            f"Streamable HTTP request failed with HTTP {exc.code} for {method}: {exc.reason}"
+        if exc.code == 404:
+            return _capture_error(
+                "unsupported_server",
+                f"Streamable HTTP endpoint not found (HTTP 404) for {method}: {exc.reason}",
+            )
+        if exc.code == 405:
+            return _capture_error(
+                "unsupported_server",
+                f"Streamable HTTP method not allowed (HTTP 405) for {method}: {exc.reason}",
+            )
+        return _capture_error(
+            "protocol",
+            f"Streamable HTTP request failed with HTTP {exc.code} for {method}: {exc.reason}",
         )
 
     def rpc(self, request_id: int, method: str, params: dict[str, Any] | None = None) -> Any:
@@ -736,16 +760,21 @@ class _StreamableHttpSession:
                     result = _parse_sse_json_rpc_response(raw, request_id, method)
                 else:
                     if not raw:
-                        raise McpCaptureError(f"Empty Streamable HTTP response for {method}")
+                        raise _capture_error(
+                            "invalid_response",
+                            f"Empty Streamable HTTP response for {method}",
+                        )
                     try:
                         payload = json.loads(raw.decode("utf-8"))
                     except json.JSONDecodeError as exc:
-                        raise McpCaptureError(
-                            f"Invalid MCP JSON response for {method}: {exc}"
+                        raise _capture_error(
+                            "invalid_response",
+                            f"Invalid MCP JSON response for {method}: {exc}",
                         ) from exc
                     if not isinstance(payload, dict) or payload.get("id") != request_id:
-                        raise McpCaptureError(
-                            f"Unexpected MCP JSON-RPC response shape for {method}"
+                        raise _capture_error(
+                            "invalid_response",
+                            f"Unexpected MCP JSON-RPC response shape for {method}",
                         )
                     if "error" in payload:
                         raise McpCaptureError(f"MCP error for {method}: {payload['error']}")
@@ -755,10 +784,24 @@ class _StreamableHttpSession:
                 return result
         except urllib.error.HTTPError as exc:
             raise self._classify_http_error(exc, method=method) from exc
+        except TimeoutError as exc:
+            raise _capture_error(
+                "timeout",
+                f"Timed out contacting Streamable HTTP endpoint "
+                f"{_safe_endpoint_for_metadata(self._url)!r} during {method}",
+            ) from exc
         except urllib.error.URLError as exc:
-            raise McpCaptureError(
+            reason = getattr(exc, "reason", exc)
+            if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower():
+                raise _capture_error(
+                    "timeout",
+                    f"Timed out contacting Streamable HTTP endpoint "
+                    f"{_safe_endpoint_for_metadata(self._url)!r} during {method}",
+                ) from exc
+            raise _capture_error(
+                "network",
                 f"Network failure contacting Streamable HTTP endpoint "
-                f"{_safe_endpoint_for_metadata(self._url)!r}: {exc.reason}"
+                f"{_safe_endpoint_for_metadata(self._url)!r}: {reason}",
             ) from exc
 
     def notify(self, method: str, params: dict[str, Any] | None = None) -> None:
@@ -779,16 +822,18 @@ class _StreamableHttpSession:
                 return
         except urllib.error.HTTPError as exc:
             if exc.code in {401, 403}:
-                raise McpCaptureError(
+                raise _capture_error(
+                    "authentication",
                     f"Streamable HTTP authentication/HTTP error {exc.code} "
-                    f"for notification {method}"
+                    f"for notification {method}",
                 ) from exc
             # Some servers return 200 with empty body for notifications.
             if exc.code >= 400:
                 raise self._classify_http_error(exc, method=method) from exc
         except urllib.error.URLError as exc:
-            raise McpCaptureError(
-                f"Network failure during Streamable HTTP notification {method}: {exc.reason}"
+            raise _capture_error(
+                "network",
+                f"Network failure during Streamable HTTP notification {method}: {exc.reason}",
             ) from exc
 
 
@@ -907,18 +952,21 @@ def capture_mcp_http(
 def _is_transport_mismatch_error(exc: McpCaptureError) -> bool:
     """Whether a Streamable HTTP failure should trigger legacy SSE fallback."""
     text = str(exc).lower()
-    if "authentication/http error" in text:
+    if "[authentication]" in text or "authentication/http error" in text:
         return False
-    if "unsupported mcp protocol version" in text:
+    if "[unsupported]" in text or "unsupported mcp protocol version" in text:
         return False
-    if "network failure" in text:
-        # Connection refused / DNS: try SSE only if the URL might be an SSE path.
+    if "[network]" in text or "network failure" in text:
         return True
-    if "http 404" in text or "http 405" in text or "http 400" in text:
+    if "[timeout]" in text or "timed out" in text:
         return True
-    if "invalid mcp json response" in text or "unexpected mcp json-rpc" in text:
+    if "[unsupported_server]" in text or "http 404" in text or "http 405" in text:
         return True
-    if "empty streamable http response" in text:
+    if "[protocol]" in text or "http 400" in text:
+        return True
+    if "[invalid_response]" in text or "invalid mcp json response" in text:
+        return True
+    if "empty streamable http response" in text or "unexpected mcp json-rpc" in text:
         return True
     return False
 
@@ -958,9 +1006,10 @@ def capture_mcp_remote(
             redact=redact,
         )
     except McpCaptureError as sse_exc:
-        raise McpCaptureError(
+        raise _capture_error(
+            "unsupported_server",
             f"Remote MCP capture failed for {_safe_endpoint_for_metadata(url)!r}. "
-            f"Streamable HTTP: {http_error}. Legacy SSE: {sse_exc}"
+            f"Streamable HTTP: {http_error}. Legacy SSE: {sse_exc}",
         ) from sse_exc
 
 

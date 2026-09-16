@@ -58,8 +58,9 @@ tool-semantics capture-mcp -o snap.json https://example.com/mcp
 
 ## Current priorities
 
-1. **P0 remaining** — protocol/capability diffs (#75), then unified `eval` (#57/#58/#76).
-2. **Downstream** — myelinmesh usage-weighted severity ([docs/downstream.md](docs/downstream.md)).
-3. **Hygiene** — keep CI green; Dependabot only when PRs fail.
+1. **P0** — Merge modern MCP capture (PR #104); then probe CLI + CI gates + `eval` (#57, #58, #76).
+2. **P1** — Final-state / reliability / protocol diffs (#105, #106, #75) and scorecard (#77).
+3. Maintainer: apply GitHub priority labels (#118) — agents cannot label via API.
+4. Full prioritized backlog: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md).
 
-Full plan: [docs/PLAN.md](docs/PLAN.md). Execution rules: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md).
+Full plan: [docs/PLAN.md](docs/PLAN.md).

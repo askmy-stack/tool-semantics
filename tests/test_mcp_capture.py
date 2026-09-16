@@ -119,7 +119,7 @@ def test_capture_mcp_http_auth_error() -> None:
     server = FakeMcpHttpServer(require_auth=True)
     server.start()
     try:
-        with pytest.raises(McpCaptureError, match="authentication/HTTP error 401"):
+        with pytest.raises(McpCaptureError, match=r"\[authentication\].*401"):
             capture_mcp_http(server.mcp_url, timeout=5.0)
         snapshot = capture_mcp_http(
             server.mcp_url,
@@ -137,7 +137,7 @@ def test_capture_mcp_http_unsupported_protocol_version() -> None:
     server = FakeMcpHttpServer(protocol_version="2099-01-01")
     server.start()
     try:
-        with pytest.raises(McpCaptureError, match="Unsupported MCP protocol version"):
+        with pytest.raises(McpCaptureError, match=r"\[unsupported\].*Unsupported MCP protocol"):
             capture_mcp_http(server.mcp_url, timeout=5.0)
     finally:
         server.stop()
@@ -169,12 +169,12 @@ def test_capture_mcp_remote_auth_does_not_fallback() -> None:
     server = FakeMcpHttpServer(require_auth=True)
     server.start()
     try:
-        with pytest.raises(McpCaptureError, match="authentication/HTTP error 401"):
+        with pytest.raises(McpCaptureError, match=r"\[authentication\]"):
             capture_mcp_remote(server.mcp_url, timeout=5.0)
     finally:
         server.stop()
 
 
 def test_capture_mcp_remote_total_failure() -> None:
-    with pytest.raises(McpCaptureError, match="Remote MCP capture failed"):
+    with pytest.raises(McpCaptureError, match=r"\[unsupported_server\].*Remote MCP capture failed"):
         capture_mcp_remote("http://127.0.0.1:9/no-mcp-here", timeout=1.0)

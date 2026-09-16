@@ -15,14 +15,18 @@ offline + library model probes, policy, Action, adapters).
 
 ## Immediate next PRs
 
-| Order | Issues | Outcome |
-| --- | --- | --- |
-| 1 | #75 | Protocol/capability diffs |
-| 2 | #57 #58 | Probe CLI + CI gates |
-| 3 | #76 | Unified `eval` |
-| 4 | #61 #77 #78 | Behavior codes + scorecard + PR comments |
+| Order | Issues | Priority | Outcome |
+| --- | --- | --- | --- |
+| 1 | #75 | P1 | Protocol/capability diffs |
+| 2 | #57 #58 | P0 | Probe CLI + CI gates |
+| 3 | #76 | P0 | Unified `eval` |
+| 4 | #105 #106 | P1 | Final-state + pass@k/pass^k |
+| 5 | #61 #77 #78 | P1 | Behavior codes + scorecard + PR comments |
 
-Shipped: Streamable HTTP + protocol negotiation + bare-URL auto-detect (#59, #73, #74).
+Shipped (PR #104): Streamable HTTP + protocol negotiation + bare-URL (#59, #73, #74).  
+New execution-spec gaps filed: #105–#117. Maintainer labeling: #118.
+
+Full priority tables: [AGENT_EXECUTION.md](AGENT_EXECUTION.md).
 
 ## Non-goals
 

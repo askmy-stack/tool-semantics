@@ -58,31 +58,44 @@
 - [ ] Protocol / capability structural diffs — [#75](https://github.com/askmy-stack/tool-semantics/issues/75)
 
 ## Milestone 8 — Unified evaluation UX (TEST → PROTECT)
-- [ ] Probe CLI surface — [#57](https://github.com/askmy-stack/tool-semantics/issues/57)
-- [ ] Probe gates in CI Action — [#58](https://github.com/askmy-stack/tool-semantics/issues/58)
-- [ ] Unified `eval` command — [#76](https://github.com/askmy-stack/tool-semantics/issues/76)
-- [ ] Final-state verifier — [#77](https://github.com/askmy-stack/tool-semantics/issues/77)
-- [ ] pass@k / pass^k reliability metrics — [#78](https://github.com/askmy-stack/tool-semantics/issues/78)
-- [ ] `behavior.*` change codes (deferred) — [#61](https://github.com/askmy-stack/tool-semantics/issues/61)
+- [ ] Probe CLI surface — [#57](https://github.com/askmy-stack/tool-semantics/issues/57) **P0**
+- [ ] Probe gates in CI Action — [#58](https://github.com/askmy-stack/tool-semantics/issues/58) **P0**
+- [ ] Unified `eval` command — [#76](https://github.com/askmy-stack/tool-semantics/issues/76) **P0**
+- [ ] Final-state verifier — [#105](https://github.com/askmy-stack/tool-semantics/issues/105) **P1**
+- [ ] pass@k / pass^k reliability metrics — [#106](https://github.com/askmy-stack/tool-semantics/issues/106) **P1**
+- [ ] Compatibility scorecard — [#77](https://github.com/askmy-stack/tool-semantics/issues/77) **P1**
+- [ ] Eval-style PR comments — [#78](https://github.com/askmy-stack/tool-semantics/issues/78) **P1**
+- [ ] `behavior.*` change codes (deferred) — [#61](https://github.com/askmy-stack/tool-semantics/issues/61) **P1**
+- [ ] Stateful workflows — [#108](https://github.com/askmy-stack/tool-semantics/issues/108) **P1**
+- [ ] No-tool correctness — [#107](https://github.com/askmy-stack/tool-semantics/issues/107) **P1**
 
 ## Milestone 9 — Semantic intelligence
-- [ ] Tool collision / confusability — [#79](https://github.com/askmy-stack/tool-semantics/issues/79)
-- [ ] Multi-signal rename confidence — [#80](https://github.com/askmy-stack/tool-semantics/issues/80)
-- [ ] Optional LLM semantic judge — [#81](https://github.com/askmy-stack/tool-semantics/issues/81)
-- [ ] Semantic distance / clustering — [#82](https://github.com/askmy-stack/tool-semantics/issues/82)
+- [ ] Tool collision / confusability — [#79](https://github.com/askmy-stack/tool-semantics/issues/79) **P1**
+- [ ] Multi-signal rename confidence — [#80](https://github.com/askmy-stack/tool-semantics/issues/80) **P1**
+- [ ] Optional embedding layer — [#117](https://github.com/askmy-stack/tool-semantics/issues/117) **P2**
+- [ ] Optional LLM semantic judge — [#81](https://github.com/askmy-stack/tool-semantics/issues/81) **P2**
+- [ ] Semantic distance / clustering — [#82](https://github.com/askmy-stack/tool-semantics/issues/82) **P2**
 
 ## Milestone 10 — Traces & workflows
-- [ ] Trace schema + capture — [#83](https://github.com/askmy-stack/tool-semantics/issues/83)
-- [ ] Trace replay — [#84](https://github.com/askmy-stack/tool-semantics/issues/84)
-- [ ] Project layout / discovery baselines — [#85](https://github.com/askmy-stack/tool-semantics/issues/85), [#86](https://github.com/askmy-stack/tool-semantics/issues/86)
+- [ ] Trace schema + capture — [#83](https://github.com/askmy-stack/tool-semantics/issues/83) **P1**
+- [ ] Trace replay — [#84](https://github.com/askmy-stack/tool-semantics/issues/84) **P1**
+- [ ] Project layout / discovery baselines — [#85](https://github.com/askmy-stack/tool-semantics/issues/85), [#86](https://github.com/askmy-stack/tool-semantics/issues/86) **P2/P1**
+- [ ] Cross-application workflows — [#112](https://github.com/askmy-stack/tool-semantics/issues/112) **P2**
 
 ## Milestone 11 — Safety, output, MCP-wide
-- [ ] Safety scope / side effects / confirmation — [#87](https://github.com/askmy-stack/tool-semantics/issues/87)
-- [ ] Expanded probe kinds — [#88](https://github.com/askmy-stack/tool-semantics/issues/88)
-- [ ] Output-schema compatibility — [#89](https://github.com/askmy-stack/tool-semantics/issues/89)
-- [ ] Prompt / resource / extension diffs — [#90](https://github.com/askmy-stack/tool-semantics/issues/90), [#91](https://github.com/askmy-stack/tool-semantics/issues/91)
+- [ ] Safety scope / side effects / confirmation — [#87](https://github.com/askmy-stack/tool-semantics/issues/87) **P1**
+- [ ] Expanded probe kinds — [#88](https://github.com/askmy-stack/tool-semantics/issues/88) **P2**
+- [ ] Output-schema compatibility — [#89](https://github.com/askmy-stack/tool-semantics/issues/89) **P1**
+- [ ] Prompt / resource / extension diffs — [#90](https://github.com/askmy-stack/tool-semantics/issues/90), [#91](https://github.com/askmy-stack/tool-semantics/issues/91) **P1/P2**
+- [ ] Integrity monitoring — [#113](https://github.com/askmy-stack/tool-semantics/issues/113) **P2**
+- [ ] Efficiency regression — [#114](https://github.com/askmy-stack/tool-semantics/issues/114) **P2**
 
 ## Milestone 12+ — Prove (benchmarks, research, DX)
-- [ ] Verified benchmark corpus and research harness — [#92](https://github.com/askmy-stack/tool-semantics/issues/92)–[#102](https://github.com/askmy-stack/tool-semantics/issues/102)
+- [ ] Difficulty / messiness + horizon — [#109](https://github.com/askmy-stack/tool-semantics/issues/109), [#110](https://github.com/askmy-stack/tool-semantics/issues/110) **P2**
+- [ ] Format-sensitivity fuzz — [#111](https://github.com/askmy-stack/tool-semantics/issues/111) **P2**
+- [ ] Corpus / mutations / research harness — [#92](https://github.com/askmy-stack/tool-semantics/issues/92)–[#95](https://github.com/askmy-stack/tool-semantics/issues/95) **P2/P3**
+- [ ] Confidence intervals + dev/test/verified split — [#115](https://github.com/askmy-stack/tool-semantics/issues/115), [#116](https://github.com/askmy-stack/tool-semantics/issues/116) **P3**
+- [ ] DX: init/doctor/lint/audit/generate-probes — [#96](https://github.com/askmy-stack/tool-semantics/issues/96)–[#98](https://github.com/askmy-stack/tool-semantics/issues/98) **P2**
 - [x] ROADMAP/PLAN + agent execution spec — [#103](https://github.com/askmy-stack/tool-semantics/issues/103)
+- [ ] Apply GitHub priority labels — [#118](https://github.com/askmy-stack/tool-semantics/issues/118) **P0**
 - Operational spec: [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md)
