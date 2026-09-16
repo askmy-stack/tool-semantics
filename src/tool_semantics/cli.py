@@ -702,3 +702,157 @@ def compare(
         markdown_output.write_text(render_markdown(report), encoding="utf-8")
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("sensitivity")
+def sensitivity_cmd(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(help="Baseline Tool-Semantics snapshot JSON."),
+    ],
+    probes_file: Annotated[
+        Path,
+        typer.Option("--probes", help="Probe suite JSON/YAML (approved probes for model runs)."),
+    ],
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            help="Experiment mode: description (rewrite levels) or catalog (size scaling).",
+        ),
+    ] = "description",
+    sizes: Annotated[
+        str,
+        typer.Option(
+            "--sizes",
+            help="Comma-separated catalog sizes for --mode catalog (default: 10,25,50,100,250).",
+        ),
+    ] = "10,25,50,100,250",
+    fake: Annotated[
+        bool,
+        typer.Option(
+            "--fake/--model",
+            help="Use description-aware FakeModelRunner (CI) or opt-in live model.",
+        ),
+    ] = True,
+    model_name: Annotated[
+        str | None,
+        typer.Option("--model-name", help="Model id when using --model."),
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option("--api-key", help="API key when using --model."),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option("--base-url", help="OpenAI-compatible base URL when using --model."),
+    ] = None,
+    allow_unapproved: Annotated[
+        bool,
+        typer.Option("--allow-unapproved", help="Allow unapproved probes (not recommended)."),
+    ] = False,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write JSON sensitivity report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write Markdown sensitivity report."),
+    ] = None,
+    csv_output: Annotated[
+        Path | None,
+        typer.Option("--csv-output", help="Write CSV sensitivity table."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log sensitivity steps to stderr."),
+    ] = False,
+) -> None:
+    """Description / catalog sensitivity research harness (#95). Not a default CI gate."""
+    from collections.abc import Callable
+
+    from tool_semantics.runner import ModelRunner
+    from tool_semantics.sensitivity import (
+        DEFAULT_CATALOG_SIZES,
+        description_aware_factory,
+        export_catalog_sensitivity_csv,
+        export_description_sensitivity_csv,
+        export_sensitivity_json,
+        render_catalog_sensitivity_markdown,
+        render_description_sensitivity_markdown,
+        run_catalog_sensitivity,
+        run_description_sensitivity,
+    )
+
+    _require_snapshot_file(snapshot, "Snapshot")
+    if not probes_file.is_file():
+        console.print(f"[red]Probe file not found:[/red] {probes_file}")
+        raise typer.Exit(code=2)
+    mode_norm = mode.strip().lower()
+    if mode_norm not in {"description", "catalog"}:
+        console.print("[red]--mode must be 'description' or 'catalog'[/red]")
+        raise typer.Exit(code=2)
+
+    try:
+        snap = read_snapshot(snapshot)
+        probes = load_probes(probes_file)
+        size_list = (
+            tuple(int(part.strip()) for part in sizes.split(",") if part.strip())
+            if mode_norm == "catalog"
+            else DEFAULT_CATALOG_SIZES
+        )
+        if mode_norm == "catalog" and (not size_list or any(size < 1 for size in size_list)):
+            raise ValueError("--sizes must be comma-separated integers >= 1")
+    except (ManifestError, FileNotFoundError, ValueError, OSError) as exc:
+        console.print(f"[red]sensitivity load failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    _log_verbose(
+        verbose,
+        f"snapshot={snapshot} probes={len(probes)} mode={mode_norm} fake={fake}",
+    )
+
+    factory: Callable[[], ModelRunner]
+    if fake:
+        factory = description_aware_factory
+    else:
+        live = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
+
+        def _live_factory() -> ModelRunner:
+            return live
+
+        factory = _live_factory
+
+    require_approval = not allow_unapproved
+    if mode_norm == "description":
+        desc_report = run_description_sensitivity(
+            snap,
+            probes,
+            factory,
+            require_approval=require_approval,
+        )
+        markdown = render_description_sensitivity_markdown(desc_report)
+        csv_text = export_description_sensitivity_csv(desc_report)
+        console.print(markdown)
+        if json_output is not None:
+            export_sensitivity_json(desc_report, json_output)
+    else:
+        catalog_report = run_catalog_sensitivity(
+            snap,
+            probes,
+            factory,
+            sizes=size_list,
+            require_approval=require_approval,
+        )
+        markdown = render_catalog_sensitivity_markdown(catalog_report)
+        csv_text = export_catalog_sensitivity_csv(catalog_report)
+        console.print(markdown)
+        if json_output is not None:
+            export_sensitivity_json(catalog_report, json_output)
+
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(markdown, encoding="utf-8")
+    if csv_output is not None:
+        csv_output.parent.mkdir(parents=True, exist_ok=True)
+        csv_output.write_text(csv_text, encoding="utf-8")
