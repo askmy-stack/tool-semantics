@@ -4,7 +4,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from tool_semantics.models import InterfaceSnapshot, RiskLevel, ToolContract
 from tool_semantics.runner import ModelRunner, RunnerConfig, RunnerMetadata
@@ -14,6 +14,67 @@ class ProbeKind(StrEnum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
     AMBIGUOUS = "ambiguous"
+
+
+class TaskDifficulty(BaseModel):
+    """Explicit difficulty dimensions for probes/benchmarks (#109)."""
+
+    tool_call_count: int | None = None
+    candidate_tool_count: int | None = None
+    cross_tool_dependencies: bool = False
+    stateful: bool = False
+    ambiguous_tool_choice: bool = False
+    permission_complexity: int = 0
+    irreversible_side_effects: bool = False
+    requires_error_recovery: bool = False
+    messiness: int | None = None
+    notes: str | None = None
+
+    @field_validator("messiness")
+    @classmethod
+    def _messiness_range(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        if value < 1 or value > 10:
+            raise ValueError("messiness must be between 1 and 10")
+        return value
+
+    @field_validator("permission_complexity")
+    @classmethod
+    def _permission_range(cls, value: int) -> int:
+        if value < 0 or value > 2:
+            raise ValueError("permission_complexity must be 0, 1, or 2")
+        return value
+
+    def messiness_band(self) -> str | None:
+        if self.messiness is None:
+            return None
+        if self.messiness <= 3:
+            return "low"
+        if self.messiness <= 6:
+            return "medium"
+        return "high"
+
+    def suggested_messiness(self) -> int:
+        score = 1
+        if self.tool_call_count and self.tool_call_count >= 3:
+            score += 1
+        if self.tool_call_count and self.tool_call_count >= 5:
+            score += 1
+        if self.candidate_tool_count and self.candidate_tool_count >= 3:
+            score += 1
+        if self.cross_tool_dependencies:
+            score += 1
+        if self.stateful:
+            score += 1
+        if self.ambiguous_tool_choice:
+            score += 1
+        score += self.permission_complexity
+        if self.irreversible_side_effects:
+            score += 1
+        if self.requires_error_recovery:
+            score += 1
+        return min(10, max(1, score))
 
 
 class Probe(BaseModel):
@@ -33,6 +94,8 @@ class Probe(BaseModel):
     approved_by: str | None = None
     # Optional expected argument keys/values for model-backed validity checks.
     expected_arguments: dict[str, Any] = Field(default_factory=dict)
+    # Optional difficulty / messiness metadata (#109).
+    difficulty: TaskDifficulty | None = None
 
 
 class ProbeResult(BaseModel):
