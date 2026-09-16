@@ -6,7 +6,14 @@ import json
 from typing import Any
 
 from tool_semantics.diff import CompatibilityReport, Severity
-from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
+from tool_semantics.probes import (
+    ModelProbeOutcome,
+    ModelProbeReport,
+    ProbeMetrics,
+    ProbeReport,
+    StabilityReport,
+    compute_probe_metrics,
+)
 
 
 def render_markdown(report: CompatibilityReport) -> str:
@@ -101,6 +108,12 @@ def render_probe_metrics_markdown(metrics: ProbeMetrics, *, title: str = "Probe 
         f"- Argument-validity rate: {_fmt_rate(metrics.argument_validity_rate)}",
         f"- Risk compliance: {_fmt_rate(metrics.risk_compliance_rate)}",
         f"- Confirmation compliance: {_fmt_rate(metrics.confirmation_compliance_rate)}",
+        f"- No-tool correctness: {_fmt_rate(metrics.no_tool_correctness_rate)}",
+        f"- Unnecessary tool-call rate: {_fmt_rate(metrics.unnecessary_tool_call_rate)}",
+        (
+            f"- Unnecessary high-severity (write/destructive) rate: "
+            f"{_fmt_rate(metrics.unnecessary_high_severity_rate)}"
+        ),
         "",
     ]
     if metrics.per_probe:
@@ -126,9 +139,6 @@ def render_probe_metrics_json(metrics: ProbeMetrics) -> dict[str, Any]:
 
 
 def render_model_probe_report_markdown(report: ModelProbeReport) -> str:
-    metrics_section = ""
-    from tool_semantics.probes import compute_probe_metrics
-
     metrics = compute_probe_metrics(report.results)
     metrics_section = render_probe_metrics_markdown(metrics)
     lines = [
@@ -146,6 +156,31 @@ def render_model_probe_report_markdown(report: ModelProbeReport) -> str:
             f"`{result.outcome.value}` | `{result.selected_tool or ''}` | {message} |"
         )
     lines.append("")
+
+    no_tool_failures = [
+        item
+        for item in report.results
+        if item.outcome is ModelProbeOutcome.UNNECESSARY_TOOL or item.unnecessary_tool_call
+    ]
+    if no_tool_failures:
+        lines.extend(
+            [
+                "## No-tool failures",
+                "",
+                "Distinct from wrong-tool selection: the model called a tool when it "
+                "should have abstained.",
+                "",
+                "| Probe | Selected tool | High severity | Message |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for item in no_tool_failures:
+            message = item.message.replace("|", "\\|")
+            lines.append(
+                f"| `{item.probe_id}` | `{item.selected_tool or ''}` | "
+                f"{'yes' if item.high_severity_unnecessary else 'no'} | {message} |"
+            )
+        lines.append("")
     return "\n".join(lines)
 
 
