@@ -929,3 +929,92 @@ def compare(
         )
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("cluster")
+def cluster_cmd(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(help="Tool-Semantics snapshot JSON."),
+    ],
+    top: Annotated[
+        int,
+        typer.Option("--top", help="How many top similar pairs to show."),
+    ] = 20,
+    threshold: Annotated[
+        float,
+        typer.Option(
+            "--threshold",
+            help="Similarity threshold for pairs / clusters (0–1).",
+        ),
+    ] = 0.55,
+    allow_large: Annotated[
+        bool,
+        typer.Option(
+            "--allow-large",
+            help="Compute full pairwise matrix when N≥500 (expensive).",
+        ),
+    ] = False,
+    max_tools: Annotated[
+        int,
+        typer.Option(
+            "--max-tools",
+            help="Subsample size when N≥500 and --allow-large is not set.",
+        ),
+    ] = 250,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write JSON semantic matrix report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write Markdown semantic report."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log cluster steps to stderr."),
+    ] = False,
+) -> None:
+    """Surface semantic distance matrix highlights and action-family clusters (#82)."""
+    from tool_semantics.semantic import (
+        compute_semantic_matrix,
+        matrix_as_dict,
+        render_semantic_matrix_markdown,
+    )
+
+    _require_snapshot_file(snapshot, "Snapshot")
+    if top < 1:
+        console.print("[red]--top must be >= 1[/red]")
+        raise typer.Exit(code=2)
+    if not 0.0 <= threshold <= 1.0:
+        console.print("[red]--threshold must be in [0, 1][/red]")
+        raise typer.Exit(code=2)
+    if max_tools < 2:
+        console.print("[red]--max-tools must be >= 2[/red]")
+        raise typer.Exit(code=2)
+
+    try:
+        snap = read_snapshot(snapshot)
+    except (ManifestError, FileNotFoundError, ValueError, OSError) as exc:
+        console.print(f"[red]cluster load failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    _log_verbose(verbose, f"tools={len(snap.tools)} top={top} allow_large={allow_large}")
+    report = compute_semantic_matrix(
+        snap,
+        top_k=top,
+        similar_threshold=threshold,
+        allow_large=allow_large,
+        max_tools=max_tools,
+    )
+    console.print(render_semantic_matrix_markdown(report))
+
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(matrix_as_dict(report), indent=2) + "\n",
+            encoding="utf-8",
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_semantic_matrix_markdown(report), encoding="utf-8")
