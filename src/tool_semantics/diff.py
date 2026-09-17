@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
+
+if TYPE_CHECKING:
+    from tool_semantics.embeddings import EmbeddingProvider
 
 
 class Severity(StrEnum):
@@ -88,12 +92,26 @@ def _detect_renames(
     added: dict[str, ToolContract],
     *,
     threshold: float = 0.55,
+    embedding_provider: EmbeddingProvider | None = None,
+    embedding_weight: float = 0.5,
 ) -> list[tuple[str, str]]:
     """Greedy one-to-one rename matches above a similarity threshold."""
+    from tool_semantics.embeddings import hybrid_tool_similarity
+
     pairs: list[tuple[float, str, str]] = []
     for old_name, old_tool in removed.items():
         for new_name, new_tool in added.items():
-            score = _tool_similarity(old_tool, new_tool)
+            token_score = _tool_similarity(old_tool, new_tool)
+            if embedding_provider is not None:
+                score = hybrid_tool_similarity(
+                    old_tool,
+                    new_tool,
+                    embedding_provider,
+                    token_score=token_score,
+                    embedding_weight=embedding_weight,
+                ).score
+            else:
+                score = token_score
             if score >= threshold:
                 pairs.append((score, old_name, new_name))
     pairs.sort(reverse=True)
@@ -388,6 +406,9 @@ def compare_snapshots(
     candidate: InterfaceSnapshot,
     *,
     detect_renames: bool = True,
+    embedding_provider: EmbeddingProvider | None = None,
+    embedding_weight: float = 0.5,
+    rename_threshold: float = 0.55,
 ) -> CompatibilityReport:
     report = CompatibilityReport(
         baseline=baseline.server_version or baseline.server_name,
@@ -403,6 +424,9 @@ def compare_snapshots(
         renames = _detect_renames(
             {name: before[name] for name in removed_names},
             {name: after[name] for name in added_names},
+            threshold=rename_threshold,
+            embedding_provider=embedding_provider,
+            embedding_weight=embedding_weight,
         )
     renamed_from = {old for old, _ in renames}
     renamed_to = {new for _, new in renames}
