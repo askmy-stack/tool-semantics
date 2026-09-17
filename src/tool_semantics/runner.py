@@ -15,6 +15,8 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from tool_semantics.redact import redact_mapping
+
 
 class RunnerConfig(BaseModel):
     """Configurable timeouts, retries, and cost-sensitive limits."""
@@ -24,6 +26,8 @@ class RunnerConfig(BaseModel):
     max_calls: int = 50
     temperature: float = 0.0
     seed: int | None = None
+    # Persist provider JSON on ModelCompletion.raw (redacted). Default off (#66).
+    include_raw: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -245,10 +249,13 @@ class OpenAICompatibleRunner:
                 arguments = {}
             tool_calls.append(ToolCallRequest(name=name, arguments=arguments))
         content = message.get("content")
+        persisted_raw: dict[str, Any] = {}
+        if cfg.include_raw:
+            persisted_raw = redact_mapping(raw) if isinstance(raw, dict) else {}
         return ModelCompletion(
             tool_calls=tool_calls,
             text=content if isinstance(content, str) else None,
-            raw=raw,
+            raw=persisted_raw,
             metadata=RunnerMetadata(
                 provider=self._metadata.provider,
                 model=self._model,
@@ -259,6 +266,7 @@ class OpenAICompatibleRunner:
                     "max_calls": cfg.max_calls,
                     "temperature": cfg.temperature,
                     "seed": cfg.seed,
+                    "include_raw": cfg.include_raw,
                     "base_url": self._base_url,
                     **cfg.extra,
                 },

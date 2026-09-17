@@ -89,3 +89,21 @@ probe = Probe(
   logs beyond selected tool name / argument keys needed for scoring.
 - Provider SDKs are optional — `OpenAICompatibleRunner` uses stdlib HTTP only.
 - Never auto-execute discovered MCP tools during probe evaluation.
+
+### Threat model (model-backed probes, #66)
+
+MCP tool **names, descriptions, and JSON Schemas are untrusted**. A malicious
+or compromised server can inject instructions into descriptions or place
+secret-like fields in schemas.
+
+Mitigations in Tool-Semantics:
+
+- Secret-like parameter names (`api_key`, `token`, `password`, …) are **omitted**
+  from outbound provider `tools` payloads; nested schema values are also passed
+  through `redact_mapping`.
+- `ModelCompletion.raw` is **empty by default**. Set `RunnerConfig.include_raw=True`
+  only when debugging; persisted raw is redacted.
+- Probe evaluation never executes discovered tools — it only scores model
+  tool-call proposals.
+
+See also [SECURITY.md](../SECURITY.md).

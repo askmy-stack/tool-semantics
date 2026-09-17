@@ -15,8 +15,13 @@ _SECRET_KEY_PATTERN = re.compile(
 _REDACTED = "***REDACTED***"
 
 
+def is_secret_key(key: str) -> bool:
+    """True when a field name looks like it may hold a secret."""
+    return bool(_SECRET_KEY_PATTERN.search(key))
+
+
 def _redact_value(key: str, value: Any) -> Any:
-    if _SECRET_KEY_PATTERN.search(key):
+    if is_secret_key(key):
         return _REDACTED
     if isinstance(value, dict):
         return {child_key: _redact_value(child_key, child) for child_key, child in value.items()}
