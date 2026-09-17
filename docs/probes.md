@@ -89,3 +89,8 @@ probe = Probe(
   logs beyond selected tool name / argument keys needed for scoring.
 - Provider SDKs are optional — `OpenAICompatibleRunner` uses stdlib HTTP only.
 - Never auto-execute discovered MCP tools during probe evaluation.
+
+## Confidence intervals
+
+Multi-trial / model-backed reports include optional Wilson score intervals.
+See [intervals.md](intervals.md) — overlapping intervals are **not** regressions.

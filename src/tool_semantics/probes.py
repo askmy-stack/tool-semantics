@@ -128,6 +128,8 @@ class StabilityReport(BaseModel):
     summaries: list[StabilityProbeSummary] = Field(default_factory=list)
     metrics: ProbeMetrics = Field(default_factory=ProbeMetrics)
     runner: RunnerMetadata | None = None
+    # Optional Wilson intervals payload for accuracy / pass@k-style rates (#115).
+    intervals: dict[str, Any] | None = None
 
 
 def evaluate_probes(snapshot: InterfaceSnapshot, probes: list[Probe]) -> ProbeReport:
@@ -607,13 +609,17 @@ def run_probe_trials(
         )
 
     runner_meta = getattr(runner, "metadata", None)
-    return StabilityReport(
+    report = StabilityReport(
         trial_count=trial_count,
         seed=base.seed,
         summaries=summaries,
         metrics=compute_probe_metrics(all_results),
         runner=runner_meta,
     )
+    from tool_semantics.intervals import intervals_from_stability
+
+    bundle = intervals_from_stability(report, results=all_results)
+    return report.model_copy(update={"intervals": bundle.model_dump(mode="json")})
 
 
 def load_probes(path: Path) -> list[Probe]:
