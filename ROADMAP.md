@@ -86,7 +86,7 @@
 - [ ] Safety scope / side effects / confirmation — [#87](https://github.com/askmy-stack/tool-semantics/issues/87) **P1**
 - [ ] Expanded probe kinds — [#88](https://github.com/askmy-stack/tool-semantics/issues/88) **P2**
 - [ ] Output-schema compatibility — [#89](https://github.com/askmy-stack/tool-semantics/issues/89) **P1**
-- [ ] Prompt / resource / extension diffs — [#90](https://github.com/askmy-stack/tool-semantics/issues/90), [#91](https://github.com/askmy-stack/tool-semantics/issues/91) **P1/P2**
+- [x] Prompt / resource / extension diffs — [#90](https://github.com/askmy-stack/tool-semantics/issues/90), [#91](https://github.com/askmy-stack/tool-semantics/issues/91) **P1/P2**
 - [ ] Integrity monitoring — [#113](https://github.com/askmy-stack/tool-semantics/issues/113) **P2**
 - [ ] Efficiency regression — [#114](https://github.com/askmy-stack/tool-semantics/issues/114) **P2**
 

@@ -13,7 +13,8 @@ assuming a single fixed version.
 | `2025-11-25` | Streamable HTTP | Accepted when returned by `initialize` |
 
 Negotiated `protocolVersion` is stored in snapshot metadata as
-`protocol_version`, along with `transport` and `server_capabilities`. Auth
+`protocol_version`, along with `transport`, `server_capabilities`, and
+best-effort `extensions` (see [extensions.md](extensions.md)). Auth
 header **values** are never persisted.
 
 ## Unsupported

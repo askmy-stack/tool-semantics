@@ -4,6 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from tool_semantics.extensions import extensions_from_snapshot_metadata
 from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
 
 
@@ -383,6 +384,55 @@ def _compare_tool_pair(
             )
 
 
+def _compare_extensions(
+    report: CompatibilityReport,
+    baseline: InterfaceSnapshot,
+    candidate: InterfaceSnapshot,
+) -> None:
+    """Diff MCP extensions advertised at initialize (#91)."""
+    base = extensions_from_snapshot_metadata(baseline.metadata)
+    cand = extensions_from_snapshot_metadata(candidate.metadata)
+    # Skip when neither side recorded extensions (manifests / older captures).
+    if not base and not cand:
+        return
+    for name in sorted(base.keys() - cand.keys()):
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="extension.removed",
+                subject=name,
+                message=(
+                    f"MCP extension '{name}' was removed (was advertised via {base[name].source})."
+                ),
+            )
+        )
+    for name in sorted(cand.keys() - base.keys()):
+        report.changes.append(
+            Change(
+                severity=Severity.INFO,
+                code="extension.added",
+                subject=name,
+                message=(f"MCP extension '{name}' was added (advertised via {cand[name].source})."),
+            )
+        )
+    for name in sorted(base.keys() & cand.keys()):
+        left = base[name]
+        right = cand[name]
+        if left.version != right.version:
+            severity = Severity.BREAKING if left.version and right.version else Severity.WARNING
+            report.changes.append(
+                Change(
+                    severity=severity,
+                    code="extension.version_changed",
+                    subject=name,
+                    message=(
+                        f"MCP extension '{name}' version changed from "
+                        f"{left.version!r} to {right.version!r}."
+                    ),
+                )
+            )
+
+
 def compare_snapshots(
     baseline: InterfaceSnapshot,
     candidate: InterfaceSnapshot,
@@ -393,6 +443,7 @@ def compare_snapshots(
         baseline=baseline.server_version or baseline.server_name,
         candidate=candidate.server_version or candidate.server_name,
     )
+    _compare_extensions(report, baseline, candidate)
     before = {tool.name: tool for tool in baseline.tools}
     after = {tool.name: tool for tool in candidate.tools}
 
