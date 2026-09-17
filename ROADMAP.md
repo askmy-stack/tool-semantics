@@ -91,7 +91,7 @@
 - [ ] Efficiency regression — [#114](https://github.com/askmy-stack/tool-semantics/issues/114) **P2**
 
 ## Milestone 12+ — Prove (benchmarks, research, DX)
-- [ ] Difficulty / messiness + horizon — [#109](https://github.com/askmy-stack/tool-semantics/issues/109), [#110](https://github.com/askmy-stack/tool-semantics/issues/110) **P2**
+- [x] Difficulty / messiness + horizon — [#109](https://github.com/askmy-stack/tool-semantics/issues/109), [#110](https://github.com/askmy-stack/tool-semantics/issues/110) **P2**
 - [ ] Format-sensitivity fuzz — [#111](https://github.com/askmy-stack/tool-semantics/issues/111) **P2**
 - [ ] Corpus / mutations / research harness — [#92](https://github.com/askmy-stack/tool-semantics/issues/92)–[#95](https://github.com/askmy-stack/tool-semantics/issues/95) **P2/P3**
 - [ ] Confidence intervals + dev/test/verified split — [#115](https://github.com/askmy-stack/tool-semantics/issues/115), [#116](https://github.com/askmy-stack/tool-semantics/issues/116) **P3**
