@@ -929,3 +929,141 @@ def compare(
         )
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("fuzz-format")
+def fuzz_format(
+    snapshot: Annotated[
+        Path,
+        typer.Argument(help="Baseline Tool-Semantics snapshot JSON."),
+    ],
+    probes_file: Annotated[
+        Path,
+        typer.Option("--probes", help="Probe suite JSON/YAML (approved probes for model runs)."),
+    ],
+    threshold: Annotated[
+        float,
+        typer.Option(
+            "--threshold",
+            help="Warn when |Δ tool-selection accuracy| exceeds this fraction.",
+        ),
+    ] = 0.05,
+    variants: Annotated[
+        int,
+        typer.Option("--variants", help="Variants per meaning-preserving transform."),
+    ] = 1,
+    fake: Annotated[
+        bool,
+        typer.Option(
+            "--fake/--model",
+            help="Use FakeModelRunner (CI default) or opt-in OpenAI-compatible runner.",
+        ),
+    ] = True,
+    model_name: Annotated[
+        str | None,
+        typer.Option("--model-name", help="Model id when using --model."),
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option("--api-key", help="API key when using --model."),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option("--base-url", help="OpenAI-compatible base URL when using --model."),
+    ] = None,
+    allow_unapproved: Annotated[
+        bool,
+        typer.Option("--allow-unapproved", help="Allow unapproved probes (not recommended)."),
+    ] = False,
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write JSON format-sensitivity report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write Markdown format-sensitivity report."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log fuzz steps to stderr."),
+    ] = False,
+) -> None:
+    """Fuzz meaning-preserving schema formatting; warn if routing accuracy shifts (#111)."""
+    from collections.abc import Callable
+
+    from tool_semantics.format_fuzz import (
+        render_format_sensitivity_markdown,
+        run_format_sensitivity,
+        scripted_fake_factory,
+    )
+    from tool_semantics.runner import ModelCompletion, ModelRunner, RunnerMetadata, ToolCallRequest
+
+    _require_snapshot_file(snapshot, "Snapshot")
+    if not probes_file.is_file():
+        console.print(f"[red]Probe file not found:[/red] {probes_file}")
+        raise typer.Exit(code=2)
+    if variants < 1:
+        console.print("[red]--variants must be >= 1[/red]")
+        raise typer.Exit(code=2)
+    if threshold < 0:
+        console.print("[red]--threshold must be >= 0[/red]")
+        raise typer.Exit(code=2)
+
+    try:
+        snap = read_snapshot(snapshot)
+        probes = load_probes(probes_file)
+    except (ManifestError, FileNotFoundError, ValueError, OSError) as exc:
+        console.print(f"[red]fuzz-format load failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    _log_verbose(
+        verbose,
+        f"snapshot={snapshot} probes={len(probes)} fake={fake} variants={variants}",
+    )
+
+    factory: Callable[[], ModelRunner]
+    if fake:
+        # Script stable selections from expected_tool when present.
+        responses: list[ModelCompletion] = []
+        for probe in probes:
+            name = probe.expected_tool or (snap.tools[0].name if snap.tools else "unknown")
+            args = {key: "x" for key in probe.required_params} or {"query": "x"}
+            responses.append(
+                ModelCompletion(
+                    tool_calls=[ToolCallRequest(name=name, arguments=args)],
+                    metadata=RunnerMetadata(provider="fake", model="fake-format-fuzz"),
+                )
+            )
+        factory = scripted_fake_factory(responses)
+    else:
+        live = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
+
+        def _live_factory() -> ModelRunner:
+            return live
+
+        factory = _live_factory
+
+    report = run_format_sensitivity(
+        snap,
+        probes,
+        factory,
+        threshold=threshold,
+        variants_per_transform=variants,
+        require_approval=not allow_unapproved,
+    )
+    console.print(render_format_sensitivity_markdown(report))
+    if report.warning:
+        console.print(f"[yellow]{report.warning_message}[/yellow]")
+
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(report.model_dump(mode="json"), indent=2) + "\n",
+            encoding="utf-8",
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_format_sensitivity_markdown(report), encoding="utf-8")
+
+    if report.warning:
+        raise typer.Exit(code=1)
