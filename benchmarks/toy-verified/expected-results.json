@@ -1,0 +1,12 @@
+{
+  "safe_change": {
+    "must_be_compatible": true,
+    "forbidden_codes": ["tool.removed", "parameter.added_required"],
+    "offline_probes_must_pass": true
+  },
+  "breaking_change": {
+    "must_be_compatible": false,
+    "required_codes": ["tool.removed"],
+    "required_subjects": ["list_entities"]
+  }
+}

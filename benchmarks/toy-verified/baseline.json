@@ -1,0 +1,27 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "corpus-verified",
+  "serverVersion": "1.0.0",
+  "tools": [
+    {
+      "name": "list_entities",
+      "description": "Primary read tool for corpus-verified.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "mutate_entities",
+      "description": "Secondary write tool for corpus-verified.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"]
+      }
+    }
+  ]
+}

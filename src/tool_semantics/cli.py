@@ -929,3 +929,77 @@ def compare(
         )
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("corpus")
+def corpus_cmd(
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Corpus root directory (default: benchmarks/)."),
+    ] = Path("benchmarks"),
+    split: Annotated[
+        str | None,
+        typer.Option(
+            "--split",
+            help="Partition: dev | test | verified (default: TEST / TOOL_SEMANTICS_CORPUS_SPLIT).",
+        ),
+    ] = None,
+    splits_file: Annotated[
+        Path,
+        typer.Option("--splits", help="Path to splits.json manifest."),
+    ] = Path("benchmarks/splits.json"),
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write JSON corpus report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write Markdown corpus report."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log corpus steps to stderr."),
+    ] = False,
+) -> None:
+    """Run offline benchmark corpus for a DEV/TEST/VERIFIED split (#92/#116)."""
+    from tool_semantics.corpus import render_corpus_markdown, run_corpus
+    from tool_semantics.splits import load_splits_manifest, render_splits_markdown, resolve_split
+
+    if not root.is_dir():
+        console.print(f"[red]Corpus root not found:[/red] {root}")
+        raise typer.Exit(code=2)
+    try:
+        active = resolve_split(split)
+        manifest = load_splits_manifest(splits_file)
+        report = run_corpus(root, split=active, splits_path=splits_file)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        console.print(f"[red]corpus failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    _log_verbose(
+        verbose,
+        f"root={root} split={active.value} cases={len(report.results)} "
+        f"skipped={report.skipped_domains}",
+    )
+    console.print(render_corpus_markdown(report, manifest=manifest))
+    if verbose:
+        console.print(render_splits_markdown(manifest))
+
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        payload = report.model_dump(mode="json")
+        payload["splits"] = manifest.model_dump(mode="json")
+        json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(
+            render_corpus_markdown(report, manifest=manifest),
+            encoding="utf-8",
+        )
+    if not report.passed:
+        raise typer.Exit(code=1)
+    if not report.results:
+        console.print(
+            f"[yellow]No cases in split `{active.value}`. Check benchmarks/splits.json.[/yellow]"
+        )
+        raise typer.Exit(code=2)

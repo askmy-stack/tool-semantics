@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "partitions": {
+    "dev": ["toy-dev"],
+    "test": ["toy-test"],
+    "verified": ["toy-verified"]
+  },
+  "notes": {
+    "dev": "Calibrate thresholds and heuristics here only.",
+    "test": "Default CI / PR gate.",
+    "verified": "Release and published research only."
+  }
+}
