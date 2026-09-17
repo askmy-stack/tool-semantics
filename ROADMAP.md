@@ -73,7 +73,7 @@
 - [ ] Tool collision / confusability — [#79](https://github.com/askmy-stack/tool-semantics/issues/79) **P1**
 - [ ] Multi-signal rename confidence — [#80](https://github.com/askmy-stack/tool-semantics/issues/80) **P1**
 - [ ] Optional embedding layer — [#117](https://github.com/askmy-stack/tool-semantics/issues/117) **P2**
-- [ ] Optional LLM semantic judge — [#81](https://github.com/askmy-stack/tool-semantics/issues/81) **P2**
+- [x] Optional LLM semantic judge — [#81](https://github.com/askmy-stack/tool-semantics/issues/81) **P2**
 - [ ] Semantic distance / clustering — [#82](https://github.com/askmy-stack/tool-semantics/issues/82) **P2**
 
 ## Milestone 10 — Traces & workflows
