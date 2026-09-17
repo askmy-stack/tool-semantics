@@ -1,0 +1,96 @@
+{
+  "task": {
+    "id": "schedule-from-drive",
+    "intent": "Attach a Drive file, email stakeholders, book a Calendar slot, and log a CRM note",
+    "namespaces": [
+      {
+        "id": "drive",
+        "display_name": "Google Drive",
+        "tools": ["drive_get_file", "drive_share"]
+      },
+      {
+        "id": "gmail",
+        "display_name": "Gmail",
+        "tools": ["gmail_send", "gmail_draft"]
+      },
+      {
+        "id": "calendar",
+        "display_name": "Google Calendar",
+        "tools": ["calendar_create_event", "calendar_list"]
+      },
+      {
+        "id": "crm",
+        "display_name": "CRM",
+        "tools": ["crm_add_note", "crm_get_contact"]
+      }
+    ],
+    "required_namespace_sequence": ["drive", "gmail", "calendar", "crm"],
+    "namespace_required_tools": {
+      "drive": ["drive_get_file"],
+      "gmail": ["gmail_send"],
+      "calendar": ["calendar_create_event"],
+      "crm": ["crm_add_note"]
+    },
+    "initial_state": {
+      "file_id": null,
+      "email_sent": false,
+      "event_id": null,
+      "crm_logged": false
+    },
+    "final_state": {
+      "file_id": "file-1",
+      "email_sent": true,
+      "event_id": "evt-9",
+      "crm_logged": true
+    }
+  },
+  "passing_trace": {
+    "task_id": "schedule-from-drive",
+    "steps": [
+      {
+        "tool": "drive_get_file",
+        "namespace": "drive",
+        "arguments": {"path": "/briefs/q3.pdf"},
+        "state_patch": {"file_id": "file-1"}
+      },
+      {
+        "tool": "gmail_send",
+        "namespace": "gmail",
+        "arguments": {"to": "team@example.com", "body": "See attached brief"},
+        "state_patch": {"email_sent": true}
+      },
+      {
+        "tool": "calendar_create_event",
+        "namespace": "calendar",
+        "arguments": {"title": "Q3 review"},
+        "state_patch": {"event_id": "evt-9"}
+      },
+      {
+        "tool": "crm_add_note",
+        "namespace": "crm",
+        "arguments": {"contact": "acme", "note": "Scheduled review"},
+        "state_patch": {"crm_logged": true}
+      }
+    ]
+  },
+  "failing_trace_missing_gmail": {
+    "task_id": "schedule-from-drive",
+    "steps": [
+      {
+        "tool": "drive_get_file",
+        "namespace": "drive",
+        "state_patch": {"file_id": "file-1"}
+      },
+      {
+        "tool": "calendar_create_event",
+        "namespace": "calendar",
+        "state_patch": {"event_id": "evt-9"}
+      },
+      {
+        "tool": "crm_add_note",
+        "namespace": "crm",
+        "state_patch": {"crm_logged": true, "email_sent": true}
+      }
+    ]
+  }
+}
