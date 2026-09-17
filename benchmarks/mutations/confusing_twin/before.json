@@ -1,0 +1,65 @@
+{
+  "tool_semantics_version": "0.1",
+  "protocol": "mcp-manifest-demo",
+  "server_name": "github-demo",
+  "server_version": "1.0.0",
+  "tools": [
+    {
+      "name": "create_issue",
+      "description": "Create a new GitHub issue.",
+      "parameters": [
+        {
+          "name": "body",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": null
+        },
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": null
+        }
+      ],
+      "output_schema": null,
+      "risk": "external_write"
+    },
+    {
+      "name": "search_issues",
+      "description": "Search open GitHub issues matching a query.",
+      "parameters": [
+        {
+          "name": "query",
+          "schema": {
+            "type": "string",
+            "description": "GitHub issue search query."
+          },
+          "required": true,
+          "description": "GitHub issue search query."
+        },
+        {
+          "name": "state",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "default": "open"
+          },
+          "required": false,
+          "description": null
+        }
+      ],
+      "output_schema": null,
+      "risk": "read_only"
+    }
+  ],
+  "prompts": [],
+  "resources": [],
+  "metadata": {}
+}

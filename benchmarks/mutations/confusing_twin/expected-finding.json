@@ -1,0 +1,12 @@
+{
+  "case_id": "confusing_twin",
+  "kind": "confusing_twin",
+  "expected_codes": [
+    "tool.added"
+  ],
+  "expected_subjects": [
+    "create_issue_similar"
+  ],
+  "notes": "Added confusing twin create_issue_similar",
+  "dropped_capability": null
+}

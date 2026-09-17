@@ -26,3 +26,5 @@ jobs:
       - run: ruff format --check .
       - run: mypy src
       - run: pytest --cov=tool_semantics --cov-report=term-missing
+      - run: tool-semantics mutate examples/github_server_v1.json --seed 0
+      - run: tool-semantics mutate examples/github_server_v1.json --corpus benchmarks/mutations

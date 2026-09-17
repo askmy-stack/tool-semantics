@@ -1,0 +1,12 @@
+{
+  "case_id": "add_required_param",
+  "kind": "add_required_param",
+  "expected_codes": [
+    "parameter.added_required"
+  ],
+  "expected_subjects": [
+    "create_issue.mut_required"
+  ],
+  "notes": "Added required param create_issue.mut_required",
+  "dropped_capability": null
+}

@@ -1,0 +1,12 @@
+{
+  "case_id": "rename",
+  "kind": "rename",
+  "expected_codes": [
+    "tool.renamed"
+  ],
+  "expected_subjects": [
+    "search_issues->search_issues_v2"
+  ],
+  "notes": "Renamed search_issues \u2192 search_issues_v2",
+  "dropped_capability": null
+}
