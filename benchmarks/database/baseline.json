@@ -1,0 +1,33 @@
+{
+  "protocol": "mcp-manifest-demo",
+  "serverName": "database-corpus",
+  "serverVersion": "1.0.0",
+  "tools": [
+    {
+      "name": "query_sql",
+      "description": "Run a read-only SQL query.",
+      "risk": "read_only",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"sql": {"type": "string"}},
+        "required": ["sql"]
+      }
+    },
+    {
+      "name": "execute_sql",
+      "description": "Execute a mutating SQL statement.",
+      "risk": "external_write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {"sql": {"type": "string"}},
+        "required": ["sql"]
+      }
+    },
+    {
+      "name": "list_tables",
+      "description": "List tables in the database.",
+      "risk": "read_only",
+      "inputSchema": {"type": "object", "properties": {}}
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "probes": [
+    {
+      "id": "search-open-issues",
+      "intent": "Find open issues",
+      "kind": "positive",
+      "expected_tool": "search_issues",
+      "required_params": ["query"],
+      "max_risk": "read_only"
+    },
+    {
+      "id": "create-bug",
+      "intent": "Open a bug issue",
+      "kind": "positive",
+      "expected_tool": "create_issue",
+      "required_params": ["title", "body"]
+    }
+  ]
+}

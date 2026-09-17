@@ -1,0 +1,19 @@
+{
+  "probes": [
+    {
+      "id": "list-schema",
+      "intent": "List database tables",
+      "kind": "positive",
+      "expected_tool": "list_tables",
+      "max_risk": "read_only"
+    },
+    {
+      "id": "safe-select",
+      "intent": "Select rows with a read-only query",
+      "kind": "positive",
+      "expected_tool": "query_sql",
+      "required_params": ["sql"],
+      "max_risk": "read_only"
+    }
+  ]
+}

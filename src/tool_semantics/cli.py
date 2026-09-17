@@ -929,3 +929,52 @@ def compare(
         )
     if fails_policy:
         raise typer.Exit(code=1)
+
+
+@app.command("corpus")
+def corpus_cmd(
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Corpus root directory (default: benchmarks/)."),
+    ] = Path("benchmarks"),
+    json_output: Annotated[
+        Path | None,
+        typer.Option("--json-output", help="Write JSON corpus report."),
+    ] = None,
+    markdown_output: Annotated[
+        Path | None,
+        typer.Option("--markdown-output", help="Write Markdown corpus report."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Log corpus steps to stderr."),
+    ] = False,
+) -> None:
+    """Run the offline multi-domain benchmark corpus (#92)."""
+    from tool_semantics.corpus import render_corpus_markdown, run_corpus
+
+    if not root.is_dir():
+        console.print(f"[red]Corpus root not found:[/red] {root}")
+        raise typer.Exit(code=2)
+
+    _log_verbose(verbose, f"corpus root={root.resolve()}")
+    report = run_corpus(root)
+    console.print(render_corpus_markdown(report))
+    if not report.passed:
+        for item in report.results:
+            if not item.passed:
+                for failure in item.failures:
+                    console.print(f"[red]{item.domain}:[/red] {failure}")
+
+    if json_output is not None:
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps(report.model_dump(mode="json"), indent=2) + "\n",
+            encoding="utf-8",
+        )
+    if markdown_output is not None:
+        markdown_output.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output.write_text(render_corpus_markdown(report), encoding="utf-8")
+
+    if not report.passed:
+        raise typer.Exit(code=1)
