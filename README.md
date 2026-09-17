@@ -9,7 +9,8 @@
 </p>
 
 <p align="center">
-  Behavioral compatibility testing for MCP tools and AI-agent interfaces.
+  Behavioral compatibility testing for MCP tools and AI-agent interfaces.<br />
+  <em>Schema-valid ≠ agent-safe.</em>
 </p>
 
 <p align="center">
@@ -23,14 +24,29 @@
 
 ## Why Tool-Semantics?
 
-AI agents do not call tools the way typed clients do. They choose tools from **descriptions**, invent **arguments** from schemas, and infer **side effects** from naming and prose. A change that remains JSON-Schema-valid can still:
+AI agents do not call tools the way typed clients do. They choose tools from
+**descriptions**, invent **arguments** from schemas, and infer **side effects**
+from naming and prose. A change that remains JSON-Schema-valid can still:
 
 - steer the model toward the wrong tool
 - drop a required argument the model used to omit
 - rename enums the model still emits
 - quietly escalate from read-only to write/destructive behavior
 
-**Tool-Semantics** captures normalized tool-interface snapshots and diffs them for structural *and* semantic risk — so teams can gate MCP and tool-API changes before agents ship broken workflows.
+**Schema-valid ≠ agent-safe.** Tool-Semantics captures normalized tool-interface
+snapshots and evaluates them for structural *and* semantic risk — so teams can
+gate MCP and tool-API changes before agents ship broken workflows.
+
+New here? Read the [simple explanation](docs/simple-explanation.md) and
+[concepts](docs/concepts.md). Full doc index: [docs/index.md](docs/index.md).
+
+## DETECT · TEST · PROTECT
+
+| | Job | Commands |
+| --- | --- | --- |
+| **DETECT** | Snapshot interfaces; see what changed | `capture`, `capture-mcp`, `compare` |
+| **TEST** | Check tool selection / args / risk expectations | `probe` (offline or `--model`) |
+| **PROTECT** | Fail CI when policy says so | exit codes, Action, [config](docs/config.md) |
 
 ## Compatibility layers
 
@@ -42,7 +58,9 @@ AI agents do not call tools the way typed clients do. They choose tools from **d
 | 4. Execution | Do calls still succeed with prior argument patterns? |
 | 5. Intent / side effects | Did risk, confirmation needs, or outcomes change? |
 
-The MVP implements deterministic interface snapshots and structural comparison (layers 1–2, with warnings that point at 3–5), plus live MCP capture over stdio, Streamable HTTP, and legacy SSE. Model-based behavioral testing is available as an opt-in library; see the [roadmap](ROADMAP.md).
+Layers 1–2 are CI-gateable today. Layers 3–5 are covered by offline probes plus
+**opt-in** model-backed probes. Live capture supports stdio, Streamable HTTP,
+and legacy SSE. See the [roadmap](ROADMAP.md).
 
 ## How it works
 
@@ -63,21 +81,29 @@ flowchart LR
   E --> F[CLI / CI exit codes]
 ```
 
-## Quick start
+## Quick start — capture → evaluate
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Capture two interface versions
+# 1. Capture baseline and candidate
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics capture examples/github_server_v2.json -o .tool-semantics/v2.json
 
-# Compare — exits 1 on breaking/critical changes
+# 2. Evaluate — structural diff + behavioral probes
 tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json \
   --markdown-output .tool-semantics/report.md
+tool-semantics probe .tool-semantics/v2.json \
+  --probes examples/probes/github_v1_offline.json
+
+# 3. Protect — non-zero exit fails CI (see docs/github-action.md)
 ```
+
+A unified `tool-semantics eval` command will combine compare + probes into one
+beginner entrypoint ([#76](https://github.com/askmy-stack/tool-semantics/issues/76)).
+Until then, use **capture → compare + probe** as the evaluate path.
 
 ### Demo
 
@@ -132,6 +158,11 @@ print("compatible:", report.is_compatible)
 
 ## CLI reference
 
+**Beginner path:** `capture` → `compare` + `probe` (evaluate) → CI protect.
+
+**Advanced / secondary** (linked below): provenance, `--config`, `--model`,
+`--trials`, verbose logs, library APIs.
+
 ```bash
 tool-semantics --version
 tool-semantics capture <manifest.json> [-o .tool-semantics/snapshot.json] \
@@ -175,12 +206,23 @@ The optional provenance sidecar records capture context and a digest of the
 snapshot. It is separate from the snapshot and never affects compatibility
 comparisons.
 
-JSON reports include `changes`, `is_compatible`, and `counts` by severity.  
-Change-code catalog: [docs/change-codes.md](docs/change-codes.md).  
-Ignore-config schema: [docs/config.md](docs/config.md).  
-GitHub Action: [docs/github-action.md](docs/github-action.md).  
-Publishing: [docs/publishing.md](docs/publishing.md).  
-Migration adapters: [docs/adapters.md](docs/adapters.md).
+JSON reports include `changes`, `is_compatible`, and `counts` by severity.
+
+### Docs
+
+| | |
+| --- | --- |
+| Index | [docs/index.md](docs/index.md) |
+| Simple explanation | [docs/simple-explanation.md](docs/simple-explanation.md) |
+| Concepts | [docs/concepts.md](docs/concepts.md) |
+| Change codes | [docs/change-codes.md](docs/change-codes.md) |
+| Architecture | [docs/architecture.md](docs/architecture.md) |
+| Config / policy | [docs/config.md](docs/config.md) |
+| Probes | [docs/probes.md](docs/probes.md) |
+| GitHub Action | [docs/github-action.md](docs/github-action.md) |
+| Publishing | [docs/publishing.md](docs/publishing.md) |
+| Adapters | [docs/adapters.md](docs/adapters.md) |
+| Milestone 7+ plan | [docs/PLAN.md](docs/PLAN.md), [docs/AGENT_EXECUTION.md](docs/AGENT_EXECUTION.md) |
 
 ### Optional `risk` field
 
@@ -215,19 +257,20 @@ assert report.passed
 ## Project layout
 
 ```text
-src/tool_semantics/   # scanner, models, diff engine, report, CLI
-examples/             # demo MCP-style manifests
+src/tool_semantics/   # scanner, models, diff engine, probes, report, CLI
+examples/             # demo MCP-style manifests + probe fixtures
 tests/                # pytest suite
+docs/                 # index, concepts, architecture, change-codes, …
 docs/assets/          # README visuals
 ```
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for milestones. Live MCP supports stdio, Streamable
-HTTP, and legacy SSE ([docs/mcp-versions.md](docs/mcp-versions.md)).
-Model-backed probes / metrics / stability are available via the library
-API (`docs/probes.md`). Downstream consumers (myelinmesh, dogfood capture):
-[`docs/downstream.md`](docs/downstream.md).
+See [ROADMAP.md](ROADMAP.md) and [docs/PLAN.md](docs/PLAN.md) for Milestone 7+.
+Live MCP supports stdio, Streamable HTTP, and legacy SSE
+([docs/mcp-versions.md](docs/mcp-versions.md)). Model-backed probes:
+[docs/probes.md](docs/probes.md). Downstream consumers:
+[docs/downstream.md](docs/downstream.md).
 
 ## Contributing
 

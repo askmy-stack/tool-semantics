@@ -9,6 +9,12 @@ the full roadmap and agent breakdown lives in [docs/PLAN.md](docs/PLAN.md) and
 **Tool-Semantics — Behavioral regression testing for MCP and AI-agent interfaces.**
 
 Know when an MCP change breaks the agent, not just the schema.
+**Schema-valid ≠ agent-safe.**
+
+Product framing: **DETECT** (capture/compare) → **TEST** (probes) → **PROTECT** (CI).
+Beginner path: capture → compare + probe (unified `eval` is #76).
+Docs: [docs/simple-explanation.md](docs/simple-explanation.md),
+[docs/index.md](docs/index.md).
 
 It snapshots a tool interface, diffs baseline vs. candidate, and reports risk
 across five compatibility layers:
@@ -38,7 +44,8 @@ Streamable HTTP, and legacy SSE.
 - `src/tool_semantics/cli.py` — Typer CLI entrypoint
 - `tests/` — pytest suite, one file per module area
 - `examples/` — demo MCP-style manifests (GitHub server v1/v2, weather)
-- `docs/` — architecture, config, change-codes, github-action, publishing, adapters
+- `docs/` — [index](docs/index.md), simple-explanation, concepts, architecture,
+  config, change-codes, probes, github-action, publishing, adapters
 
 ## Dev commands
 
@@ -53,6 +60,7 @@ ruff format --check .
 
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json --markdown-output report.md
+tool-semantics probe .tool-semantics/v2.json --probes examples/probes/github_v1_offline.json
 tool-semantics capture-mcp -o snap.json https://example.com/mcp
 ```
 
