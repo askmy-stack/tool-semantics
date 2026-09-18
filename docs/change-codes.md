@@ -9,6 +9,12 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `tool.added` | info | A new tool appeared; selection-collision testing is still pending |
 | `tool.description_changed` | warning | Description text changed; model tool-selection may drift |
 | `tool.risk_changed` | warning / critical | Declared risk level changed (critical when escalating from `read_only`) |
+| `tool.scope_escalated` | breaking / critical | Permission scope widened (critical for `account` / `global`) |
+| `tool.scope_changed` | warning | Scope changed without a clear known→wider escalation |
+| `tool.side_effect_added` | breaking / critical | New declared side effect (critical for delete/payment/admin/execute) |
+| `tool.side_effect_removed` | info | Declared side effect removed |
+| `tool.confirmation_removed` | critical | `requires_confirmation` true→false |
+| `tool.confirmation_added` | info | `requires_confirmation` false→true |
 | `tool.renamed` | warning | Heuristic match suggests a tool was renamed (not a hard remove+add) |
 | `discovery.accuracy_regression` | warning | Progressive-discovery curve: selection accuracy dropped as catalog grew (#86) |
 | `tool.output_schema_added` | info | A tool gained an `outputSchema` |

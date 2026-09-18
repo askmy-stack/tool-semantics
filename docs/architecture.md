@@ -87,7 +87,11 @@ replacement for Git-tracked baselines.
 - [adr-live-mcp-capture.md](adr-live-mcp-capture.md) — live MCP capture ADR
 - [mcp-versions.md](mcp-versions.md) — supported protocol generations / transports
 - [config.md](config.md) — project configuration
+<<<<<<< HEAD
+- [safety.md](safety.md) — scope / side effects / confirmation (#87)
+=======
 - [traces.md](traces.md) — versioned agent trace schema (#83)
+>>>>>>> origin/main
 - [github-action.md](github-action.md) — composite Action usage
 - [AGENT_EXECUTION.md](AGENT_EXECUTION.md) — agent execution specification
 
