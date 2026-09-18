@@ -63,6 +63,9 @@ packages = ["src/tool_semantics"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+  "integration: live external services; skipped unless dogfood env credentials are set",
+]
 
 [tool.ruff]
 line-length = 100

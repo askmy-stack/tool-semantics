@@ -37,19 +37,60 @@ that is not covered by `ProbeMetrics` / `StabilityReport`.
 
 ## market-pulse-mcp — dogfood SSE capture
 
-Optional live-capture smoke against the org MCP server:
+Optional live-capture smoke against the org MCP server (or any SSE MCP endpoint).
+**Capture-only** — discovered tools are never executed.
+
+### Manual / nightly recipe
 
 ```bash
+export TOOL_SEMANTICS_DOGFOOD_SSE_URL="$MARKET_PULSE_SSE_URL"   # required
+export TOOL_SEMANTICS_DOGFOOD_SSE_TOKEN="$TOKEN"                # if auth required
+
 pip install "tool-semantics>=0.4.0"
-tool-semantics capture-mcp --sse "$MARKET_PULSE_SSE_URL" \
-  --header "Authorization: Bearer $TOKEN" \
+# CLI path
+tool-semantics capture-mcp --sse "$TOOL_SEMANTICS_DOGFOOD_SSE_URL" \
+  --header "Authorization: Bearer $TOOL_SEMANTICS_DOGFOOD_SSE_TOKEN" \
   -o .tool-semantics/market-pulse.json
+
+# Integration test (skipped in PR CI when env is unset)
+pytest -m integration tests/test_dogfood_sse.py
+```
+
+Aliases accepted by the test: `MARKET_PULSE_SSE_URL`, `MARKET_PULSE_SSE_TOKEN` / `TOKEN`.
+
+Optional GitHub Actions job (enable when repository secrets exist):
+
+```yaml
+# .github/workflows/dogfood-sse.yml
+name: Dogfood SSE
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly Monday 06:00 UTC
+jobs:
+  capture:
+    if: ${{ secrets.TOOL_SEMANTICS_DOGFOOD_SSE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -m integration tests/test_dogfood_sse.py
+        env:
+          TOOL_SEMANTICS_DOGFOOD_SSE_URL: ${{ secrets.TOOL_SEMANTICS_DOGFOOD_SSE_URL }}
+          TOOL_SEMANTICS_DOGFOOD_SSE_TOKEN: ${{ secrets.TOOL_SEMANTICS_DOGFOOD_SSE_TOKEN }}
 ```
 
 Confirm:
 
-- Snapshot protocol / metadata transport is SSE (`mcp-sse` / `sse`)
-- Auth header values never appear in snapshot JSON / metadata
+- Snapshot protocol is `mcp-sse` (metadata `transport: sse`)
+- Auth header **values** never appear in snapshot JSON / metadata (only header names)
 - Tools list is non-empty and redaction still applies
+
+Automated assertions live in [`tests/test_dogfood_sse.py`](../tests/test_dogfood_sse.py)
+(`pytest.mark.integration`). Default PR CI does not set credentials, so the test
+skips and stays green.
 
 No market-pulse-mcp code changes are required for this dogfood path.
