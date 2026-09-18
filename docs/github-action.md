@@ -79,7 +79,7 @@ Probe thresholds and defaults can also live in `.tool-semantics.toml` — see
 | `probe-target` | no | `""` | `candidate` / `baseline` / `both` |
 | `probe-trials` | no | `""` | Stability trial count (`>1` implies model mode) |
 | `probe-seed` | no | `""` | Optional seed for model-backed trials |
-| `comment-on-pr` | no | `true` | Upsert a PR comment with the report |
+| `comment-on-pr` | no | `true` | Upsert an eval-style PR comment (scorecard + optional probes) |
 | `upload-artifacts` | no | `false` | Upload the candidate snapshot and generated reports as a workflow artifact |
 | `fail-on-breaking` | no | `true` | Legacy; `false` maps to `permissive` when `policy` unset |
 | `working-directory` | no | `.` | Directory for install/compare |
@@ -111,3 +111,50 @@ metrics / stability summaries.
 
 When `comment-on-pr` is enabled on `pull_request` events, the workflow needs
 `pull-requests: write`.
+
+## PR comment shape
+
+Comments are upserted with the marker `<!-- tool-semantics-report -->` and an
+**eval-style** summary (not the raw full report alone):
+
+```markdown
+<!-- tool-semantics-report -->
+## Tool-Semantics eval summary
+
+**STATUS:** `FAIL`
+
+### Counts
+
+- critical: `0`
+- breaking: `2`
+- warning: `1`
+- info: `3`
+
+### Scorecard
+
+| Dimension | Status | Score | Evidence |
+| --- | --- | ---: | --- |
+| `structural` | `fail` | 50% | `DETERMINISTIC` |
+| `semantic` | `pass` | 100% | `DETERMINISTIC` |
+| `behavioral` | `n/a` | n/a | `N/A` |
+| `safety` | `pass` | 100% | `DETERMINISTIC` |
+| `stability` | `n/a` | n/a | `N/A` |
+
+_Behavioral / stability probes were not configured — structural-only summary
+(behavioral/stability show n/a)._
+
+### Top breaking findings
+
+- `tool.removed` on `search_issues` (`DETERMINISTIC`) — Tool 'search_issues' was removed.
+
+<details>
+<summary>Full Tool-Semantics report</summary>
+
+… full Markdown report including scorecard / probe sections …
+
+</details>
+```
+
+When `probes` is set, the scorecard fills in behavioral (and optionally
+stability) rows from the probe gate, and a probe failure forces
+`STATUS: FAIL` even if structural policy would otherwise pass.

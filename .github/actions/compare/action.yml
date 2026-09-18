@@ -167,30 +167,64 @@ runs:
         fi
         exit 0
 
-    - name: Comment on pull request
-      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
-      uses: actions/github-script@v7
+    - name: Render eval-style PR comment
+      id: pr-comment
+      if: ${{ always() && inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
       env:
         REPORT_PATH: ${{ steps.compare.outputs.report-path }}
-        COMPATIBLE: ${{ steps.compare.outputs.compatible }}
-        PROBE_FAILED: ${{ steps.compare.outputs.probe-failed }}
+        JSON_PATH: ${{ runner.temp }}/tool-semantics/report.json
+        COMMENT_PATH: ${{ runner.temp }}/tool-semantics/pr-comment.md
+      run: |
+        mkdir -p "$(dirname "$COMMENT_PATH")"
+        python - <<'PY'
+        import json
+        import os
+        from pathlib import Path
+
+        json_path = Path(os.environ["JSON_PATH"])
+        report_path = Path(os.environ.get("REPORT_PATH") or "")
+        out = Path(os.environ["COMMENT_PATH"])
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+        full_md = report_path.read_text(encoding="utf-8") if report_path.is_file() else ""
+
+        if json_path.is_file():
+            from tool_semantics.scorecard import render_pr_comment_markdown
+
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            body = render_pr_comment_markdown(
+                report_payload=payload,
+                full_report_markdown=full_md or None,
+            )
+        elif full_md:
+            body = "## Tool-Semantics eval summary\n\n" + full_md
+        else:
+            body = (
+                "## Tool-Semantics eval summary\n\n"
+                "**STATUS:** `FAIL`\n\n"
+                "_No compare report was produced._\n"
+            )
+        out.write_text(body, encoding="utf-8")
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as gh:
+            print(f"comment-path={out}", file=gh)
+        PY
+
+    - name: Comment on pull request
+      if: ${{ always() && inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' && steps.pr-comment.outputs.comment-path != '' }}
+      uses: actions/github-script@v7
+      env:
+        COMMENT_PATH: ${{ steps.pr-comment.outputs.comment-path }}
       with:
         script: |
           const fs = require('fs');
           const marker = '<!-- tool-semantics-report -->';
-          const path = process.env.REPORT_PATH;
-          const compatible = process.env.COMPATIBLE === 'true';
-          const probeFailed = process.env.PROBE_FAILED === 'true';
-          let body = marker + '\n## Tool-Semantics compatibility\n\n';
-          if (!compatible || probeFailed) {
-            body += '**Result:** breaking / critical changes or probe gate failure\n\n';
-          } else {
-            body += '**Result:** compatible\n\n';
-          }
+          const path = process.env.COMMENT_PATH;
+          let body = marker + '\n';
           if (path && fs.existsSync(path)) {
             body += fs.readFileSync(path, 'utf8');
           } else {
-            body += '_No Markdown report was produced._\n';
+            body += '## Tool-Semantics eval summary\n\n_No Markdown report was produced._\n';
           }
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,

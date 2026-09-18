@@ -42,6 +42,7 @@ Positioning (use consistently):
 | Final-state verifier | Missing | #105 | P1 |
 | pass@k / pass^k | First-class in StabilityReport | #106 | P1 |
 | `behavior.*` codes | Deferred | #61 | P1 |
+| Compatibility scorecard | Scorecard + explanations in compare | #77 | P1 |
 | Semantic collision / rename / embeddings | Token Jaccard only | #79, #80, #117 | P1/P2 |
 | No-tool / workflows | Missing | #107, #108 | P1 |
 | Trace replay | Missing | #83, #84 | P1 |

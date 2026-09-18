@@ -8,11 +8,18 @@ from typing import Any
 from tool_semantics.diff import CompatibilityReport, Severity
 from tool_semantics.probe_gate import ProbeGateReport, TargetProbeOutcome
 from tool_semantics.probes import ModelProbeReport, ProbeMetrics, ProbeReport, StabilityReport
+from tool_semantics.scorecard import (
+    CompatibilityScorecard,
+    build_scorecard,
+    render_scorecard_markdown,
+)
 
 
 def render_markdown(
     report: CompatibilityReport,
     *,
+    scorecard: CompatibilityScorecard | None = None,
+    include_scorecard: bool = True,
     probe_gate: ProbeGateReport | None = None,
 ) -> str:
     """Render a GitHub-friendly Markdown compatibility report."""
@@ -48,6 +55,15 @@ def render_markdown(
             )
         lines.append("")
 
+    if include_scorecard:
+        card = scorecard
+        if card is None:
+            card = build_scorecard(
+                report,
+                probe_gate=probe_gate if probe_gate is not None and probe_gate.enabled else None,
+            )
+        lines.append(render_scorecard_markdown(card).rstrip())
+        lines.append("")
     if probe_gate is not None and probe_gate.enabled:
         lines.append(render_probe_gate_markdown(probe_gate).rstrip())
         lines.append("")

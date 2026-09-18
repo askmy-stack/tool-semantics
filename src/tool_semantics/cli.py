@@ -46,6 +46,7 @@ from tool_semantics.report import (
 )
 from tool_semantics.runner import ModelRunner, OpenAICompatibleRunner, RunnerConfig
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
+from tool_semantics.scorecard import build_scorecard
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -917,6 +918,10 @@ def compare(
             for breach in probe_gate.breaches:
                 console.print(f"  [red]•[/red] {breach}")
 
+    scorecard = build_scorecard(
+        report,
+        probe_gate=probe_gate if probe_gate.enabled else None,
+    )
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
         payload = report.model_dump(mode="json")
@@ -928,12 +933,17 @@ def compare(
             "structural_failed": fails_structural,
             "probe_failed": fails_probes,
         }
+        payload["scorecard"] = scorecard.to_json()
         payload["probes"] = probe_gate.to_json()
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if markdown_output is not None:
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
         markdown_output.write_text(
-            render_markdown(report, probe_gate=probe_gate if probe_gate.enabled else None),
+            render_markdown(
+                report,
+                scorecard=scorecard,
+                probe_gate=probe_gate if probe_gate.enabled else None,
+            ),
             encoding="utf-8",
         )
     if fails_policy:
