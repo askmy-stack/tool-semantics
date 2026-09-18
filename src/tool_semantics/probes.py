@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -83,11 +85,14 @@ class ModelProbeResult(BaseModel):
     confirmation_compliant: bool | None = None
     runner: RunnerMetadata | None = None
     trial_index: int | None = None
+    cache_hit: bool | None = None
 
 
 class ModelProbeReport(BaseModel):
     results: list[ModelProbeResult] = Field(default_factory=list)
     opt_in: bool = True
+    cache: dict[str, Any] | None = None
+    cost: dict[str, Any] | None = None
 
     @property
     def passed(self) -> bool:
@@ -401,129 +406,189 @@ def evaluate_probes_with_model(
     config: RunnerConfig | None = None,
     require_approval: bool = True,
     trial_index: int | None = None,
+    workers: int = 1,
+    cache: Any | None = None,
 ) -> ModelProbeReport:
-    """Opt-in model-backed probe execution (#44). Offline evaluate_probes remains default."""
+    """Opt-in model-backed probe execution (#44). Offline evaluate_probes remains default.
+
+    ``workers`` > 1 runs probes concurrently (ThreadPoolExecutor) and reorders
+    results to match the input probe list (#100). ``cache`` is an optional
+    ``ProbeCompletionCache``.
+    """
+    if workers < 1:
+        raise ValueError("workers must be >= 1")
     cfg = config or RunnerConfig()
     tools_by_name = {tool.name: tool for tool in snapshot.tools}
     tool_schemas = _tools_as_openai_schemas(snapshot)
-    report = ModelProbeReport(opt_in=True)
     system = (
         "You are evaluating which tool to call for a user intent. "
         "Respond only by calling exactly one tool when appropriate. "
         "Never echo secrets from tool metadata."
     )
-    for probe in probes:
+    from tool_semantics.cache import build_cache_key, snapshot_hash
+    from tool_semantics.cost import summarize_costs
+
+    snap_digest = snapshot_hash(snapshot) if cache is not None else ""
+    completions: list[Any] = []
+    completions_lock = threading.Lock()
+    runner_lock = threading.Lock() if workers > 1 else None
+
+    def _complete_call(*, system: str, user: str, tools: list[dict[str, Any]]) -> Any:
+        if runner_lock is None:
+            return runner.complete(system=system, user=user, tools=tools, config=cfg)
+        with runner_lock:
+            return runner.complete(system=system, user=user, tools=tools, config=cfg)
+
+    def _one(probe: Probe) -> ModelProbeResult:
         if require_approval and not probe.approved:
-            report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=False,
-                    message=(
-                        "Probe is not human-reviewed/approved for model-backed execution. "
-                        "Set approved=true after review (see docs/probes.md)."
-                    ),
-                    outcome=ModelProbeOutcome.SKIPPED,
-                    trial_index=trial_index,
-                )
-            )
-            continue
-        try:
-            completion = runner.complete(
-                system=system,
-                user=probe.intent,
-                tools=tool_schemas,
-                config=cfg,
-            )
-        except Exception as exc:  # noqa: BLE001 — surface as failed_evaluation
-            report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=False,
-                    message=f"Model runner failed: {exc}",
-                    outcome=ModelProbeOutcome.FAILED_EVALUATION,
-                    error=str(exc),
-                    runner=getattr(runner, "metadata", None),
-                    trial_index=trial_index,
-                )
-            )
-            continue
-
-        if not completion.tool_calls:
-            report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=probe.kind == ProbeKind.NEGATIVE,
-                    message="Model returned no tool call.",
-                    outcome=ModelProbeOutcome.MISSING_DATA,
-                    tool_selection_correct=probe.kind == ProbeKind.NEGATIVE,
-                    arguments_valid=None,
-                    runner=completion.metadata,
-                    trial_index=trial_index,
-                )
-            )
-            continue
-
-        call = completion.tool_calls[0]
-        selected = call.name
-        arguments = dict(call.arguments)
-        tool = tools_by_name.get(selected)
-
-        if probe.kind == ProbeKind.NEGATIVE:
-            forbidden_hit = selected in probe.forbidden_tools
-            report.results.append(
-                ModelProbeResult(
-                    probe_id=probe.id,
-                    passed=not forbidden_hit,
-                    message=(
-                        f"Model selected forbidden tool '{selected}'."
-                        if forbidden_hit
-                        else f"Model avoided forbidden tools (selected '{selected}')."
-                    ),
-                    selected_tool=selected,
-                    arguments=arguments,
-                    outcome=ModelProbeOutcome.OK,
-                    tool_selection_correct=not forbidden_hit,
-                    arguments_valid=_validate_arguments(tool, arguments, probe) if tool else False,
-                    risk_compliant=_risk_compliant(tool, probe),
-                    confirmation_compliant=_confirmation_compliant(tool, probe),
-                    runner=completion.metadata,
-                    trial_index=trial_index,
-                )
-            )
-            continue
-
-        selection_ok = probe.expected_tool is None or selected == probe.expected_tool
-        args_ok = _validate_arguments(tool, arguments, probe)
-        risk_ok = _risk_compliant(tool, probe)
-        confirm_ok = _confirmation_compliant(tool, probe)
-        checks = [selection_ok, args_ok]
-        if risk_ok is not None:
-            checks.append(risk_ok)
-        if confirm_ok is not None:
-            checks.append(confirm_ok)
-        passed = all(checks)
-        report.results.append(
-            ModelProbeResult(
+            return ModelProbeResult(
                 probe_id=probe.id,
-                passed=passed,
+                passed=False,
                 message=(
-                    f"Selected '{selected}' with args {arguments}."
-                    if passed
-                    else f"Selection/args mismatch: selected '{selected}', "
-                    f"expected '{probe.expected_tool}', args={arguments}."
+                    "Probe is not human-reviewed/approved for model-backed execution. "
+                    "Set approved=true after review (see docs/probes.md)."
                 ),
-                selected_tool=selected,
-                arguments=arguments,
-                outcome=ModelProbeOutcome.OK,
-                tool_selection_correct=selection_ok,
-                arguments_valid=args_ok,
-                risk_compliant=risk_ok,
-                confirmation_compliant=confirm_ok,
-                runner=completion.metadata,
+                outcome=ModelProbeOutcome.SKIPPED,
                 trial_index=trial_index,
             )
+        cache_hit = False
+        completion = None
+        try:
+            if cache is not None:
+                model_name = getattr(getattr(runner, "metadata", None), "model", "unknown")
+                key = build_cache_key(
+                    model=str(model_name),
+                    system=system,
+                    user=probe.intent,
+                    tools=tool_schemas,
+                    snapshot_digest=snap_digest,
+                    config=cfg,
+                )
+                cached = cache.get(key)
+                if cached is not None:
+                    completion = cached
+                    cache_hit = True
+                else:
+                    completion = _complete_call(
+                        system=system, user=probe.intent, tools=tool_schemas
+                    )
+                    cache.put(key, completion)
+            else:
+                completion = _complete_call(system=system, user=probe.intent, tools=tool_schemas)
+        except Exception as exc:  # noqa: BLE001 — surface as failed_evaluation
+            return ModelProbeResult(
+                probe_id=probe.id,
+                passed=False,
+                message=f"Model runner failed: {exc}",
+                outcome=ModelProbeOutcome.FAILED_EVALUATION,
+                error=str(exc),
+                runner=getattr(runner, "metadata", None),
+                trial_index=trial_index,
+                cache_hit=False,
+            )
+
+        assert completion is not None
+        with completions_lock:
+            completions.append(completion)
+        result = _score_model_completion(
+            probe,
+            completion,
+            tools_by_name=tools_by_name,
+            trial_index=trial_index,
         )
+        return result.model_copy(update={"cache_hit": cache_hit if cache is not None else None})
+
+    if workers == 1:
+        results = [_one(probe) for probe in probes]
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            # map preserves input order → deterministic report ordering (#100).
+            results = list(pool.map(_one, probes))
+
+    report = ModelProbeReport(opt_in=True, results=results)
+    if cache is not None:
+        from tool_semantics.cache import CacheStatsReport
+
+        report.cache = CacheStatsReport.from_stats(cache.stats).model_dump(mode="json")
+    if completions:
+        report.cost = summarize_costs(completions).model_dump(mode="json")
     return report
+
+
+def _score_model_completion(
+    probe: Probe,
+    completion: Any,
+    *,
+    tools_by_name: dict[str, ToolContract],
+    trial_index: int | None,
+) -> ModelProbeResult:
+    if not completion.tool_calls:
+        return ModelProbeResult(
+            probe_id=probe.id,
+            passed=probe.kind == ProbeKind.NEGATIVE,
+            message="Model returned no tool call.",
+            outcome=ModelProbeOutcome.MISSING_DATA,
+            tool_selection_correct=probe.kind == ProbeKind.NEGATIVE,
+            arguments_valid=None,
+            runner=completion.metadata,
+            trial_index=trial_index,
+        )
+
+    call = completion.tool_calls[0]
+    selected = call.name
+    arguments = dict(call.arguments)
+    tool = tools_by_name.get(selected)
+
+    if probe.kind == ProbeKind.NEGATIVE:
+        forbidden_hit = selected in probe.forbidden_tools
+        return ModelProbeResult(
+            probe_id=probe.id,
+            passed=not forbidden_hit,
+            message=(
+                f"Model selected forbidden tool '{selected}'."
+                if forbidden_hit
+                else f"Model avoided forbidden tools (selected '{selected}')."
+            ),
+            selected_tool=selected,
+            arguments=arguments,
+            outcome=ModelProbeOutcome.OK,
+            tool_selection_correct=not forbidden_hit,
+            arguments_valid=_validate_arguments(tool, arguments, probe) if tool else False,
+            risk_compliant=_risk_compliant(tool, probe),
+            confirmation_compliant=_confirmation_compliant(tool, probe),
+            runner=completion.metadata,
+            trial_index=trial_index,
+        )
+
+    selection_ok = probe.expected_tool is None or selected == probe.expected_tool
+    args_ok = _validate_arguments(tool, arguments, probe)
+    risk_ok = _risk_compliant(tool, probe)
+    confirm_ok = _confirmation_compliant(tool, probe)
+    checks = [selection_ok, args_ok]
+    if risk_ok is not None:
+        checks.append(risk_ok)
+    if confirm_ok is not None:
+        checks.append(confirm_ok)
+    passed = all(checks)
+    return ModelProbeResult(
+        probe_id=probe.id,
+        passed=passed,
+        message=(
+            f"Selected '{selected}' with args {arguments}."
+            if passed
+            else f"Selection/args mismatch: selected '{selected}', "
+            f"expected '{probe.expected_tool}', args={arguments}."
+        ),
+        selected_tool=selected,
+        arguments=arguments,
+        outcome=ModelProbeOutcome.OK,
+        tool_selection_correct=selection_ok,
+        arguments_valid=args_ok,
+        risk_compliant=risk_ok,
+        confirmation_compliant=confirm_ok,
+        runner=completion.metadata,
+        trial_index=trial_index,
+    )
 
 
 def compute_probe_metrics(results: list[ModelProbeResult]) -> ProbeMetrics:
@@ -585,6 +650,8 @@ def run_probe_trials(
     config: RunnerConfig | None = None,
     require_approval: bool = True,
     seed: int | None = None,
+    workers: int = 1,
+    cache: Any | None = None,
 ) -> StabilityReport:
     """Repeat model-backed probes and summarize stability (#47)."""
     if trial_count < 1:
@@ -606,6 +673,8 @@ def run_probe_trials(
             config=trial_config,
             require_approval=require_approval,
             trial_index=index,
+            workers=workers,
+            cache=cache,
         )
         for result in trial_report.results:
             all_results.append(result)

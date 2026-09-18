@@ -25,6 +25,11 @@ tool-semantics probe .tool-semantics/v1.json \
 tool-semantics probe .tool-semantics/v1.json \
   --probes examples/probes/github_v1_offline.json \
   --trials 4 --seed 1
+
+# Parallel workers + completion cache (#100)
+tool-semantics probe .tool-semantics/v1.json \
+  --probes examples/probes/github_v1_offline.json \
+  --model --workers 4 --cache-dir .tool-semantics/cache
 ```
 
 `--trials` sets **k** for pass@k / pass^k reliability metrics — see
