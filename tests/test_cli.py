@@ -192,3 +192,54 @@ def test_compare_verbose_and_config_ignore(tmp_path: Path) -> None:
     assert "Changes=" in result.stderr
     assert result.exit_code == 0
     assert "compatible" in result.stdout.lower()
+
+
+def test_capture_mcp_header_parse_errors() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "capture-mcp",
+            "-o",
+            "/tmp/x.json",
+            "--header",
+            "NoColon",
+            "--http",
+            "http://127.0.0.1:9/",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Invalid --header" in result.stdout
+
+    result = runner.invoke(
+        app,
+        [
+            "capture-mcp",
+            "-o",
+            "/tmp/x.json",
+            "--header",
+            ": value",
+            "--http",
+            "http://127.0.0.1:9/",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Invalid --header name" in result.stdout
+
+
+def test_capture_mcp_sse_cli_happy_path(tmp_path: Path) -> None:
+    from fixtures.fake_mcp_sse_server import FakeMcpSseServer
+
+    server = FakeMcpSseServer()
+    server.start()
+    try:
+        out = tmp_path / "sse.json"
+        result = runner.invoke(
+            app,
+            ["capture-mcp", "-o", str(out), "--sse", server.sse_url],
+        )
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["protocol"] == "mcp-sse"
+        assert payload["metadata"]["transport"] == "sse"
+    finally:
+        server.stop()
