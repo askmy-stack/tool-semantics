@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tool_semantics.models import InterfaceSnapshot, ToolContract, ToolParameter
+from tool_semantics.models import (
+    InterfaceSnapshot,
+    ToolContract,
+    ToolParameter,
+    extract_safety_annotations,
+)
 
 
 class ManifestError(ValueError):
@@ -58,13 +63,17 @@ def capture_manifest(path: Path) -> InterfaceSnapshot:
         output_schema = raw_tool.get("outputSchema")
         if output_schema is not None and not isinstance(output_schema, dict):
             raise ManifestError(f"Tool '{raw_tool['name']}' outputSchema must be an object")
+        safety = extract_safety_annotations(raw_tool)
         tools.append(
             ToolContract(
                 name=raw_tool["name"],
                 description=str(raw_tool.get("description", "")),
                 parameters=_normalize_parameters(input_schema),
                 output_schema=output_schema,
-                risk=raw_tool.get("risk", "unknown"),
+                risk=safety["risk"],
+                scope=safety["scope"],
+                side_effects=safety["side_effects"],
+                requires_confirmation=safety["requires_confirmation"],
             )
         )
 

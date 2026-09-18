@@ -18,8 +18,8 @@ from tool_semantics.models import (
     InterfaceSnapshot,
     PromptContract,
     ResourceContract,
-    RiskLevel,
     ToolContract,
+    extract_safety_annotations,
 )
 from tool_semantics.redact import redact_snapshot
 from tool_semantics.scanner import ManifestError, _normalize_parameters
@@ -142,20 +142,17 @@ def _tool_from_mcp(raw: dict[str, Any]) -> ToolContract:
     output_schema = raw.get("outputSchema")
     if output_schema is not None and not isinstance(output_schema, dict):
         raise McpCaptureError(f"Tool '{name}' outputSchema must be an object")
-    risk_raw = None
-    annotations = raw.get("annotations")
-    if isinstance(annotations, dict):
-        risk_raw = annotations.get("risk")
-    try:
-        risk = RiskLevel(risk_raw) if isinstance(risk_raw, str) else RiskLevel.UNKNOWN
-    except ValueError:
-        risk = RiskLevel.UNKNOWN
+    # Accept safety annotations when present; never invent side effects / scope.
+    safety = extract_safety_annotations(raw)
     return ToolContract(
         name=name,
         description=str(raw.get("description", "")),
         parameters=_normalize_parameters(input_schema),
         output_schema=output_schema,
-        risk=risk,
+        risk=safety["risk"],
+        scope=safety["scope"],
+        side_effects=safety["side_effects"],
+        requires_confirmation=safety["requires_confirmation"],
     )
 
 

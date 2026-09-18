@@ -1,0 +1,21 @@
+{
+  "tool_semantics_trace_version": "1.0",
+  "id": "github-search-issues-001",
+  "intent": "Find open issues about MCP authentication in askmy-stack/tool-semantics",
+  "selected_tool": "search_issues",
+  "arguments": {
+    "query": "MCP authentication",
+    "state": "open"
+  },
+  "outcome": "success",
+  "model": {
+    "provider": "openai-compatible",
+    "model": "gpt-4.1-mini",
+    "temperature": 0.0,
+    "seed": 42
+  },
+  "server_name": "github",
+  "snapshot_ref": "examples/github_server_v1.json",
+  "started_at": "2026-09-16T12:00:00Z",
+  "ended_at": "2026-09-16T12:00:01Z"
+}

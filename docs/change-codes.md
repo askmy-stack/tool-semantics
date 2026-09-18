@@ -9,10 +9,21 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `tool.added` | info | A new tool appeared; selection-collision testing is still pending |
 | `tool.description_changed` | warning | Description text changed; model tool-selection may drift |
 | `tool.risk_changed` | warning / critical | Declared risk level changed (critical when escalating from `read_only`) |
+| `tool.scope_escalated` | breaking / critical | Permission scope widened (critical for `account` / `global`) |
+| `tool.scope_changed` | warning | Scope changed without a clear known→wider escalation |
+| `tool.side_effect_added` | breaking / critical | New declared side effect (critical for delete/payment/admin/execute) |
+| `tool.side_effect_removed` | info | Declared side effect removed |
+| `tool.confirmation_removed` | critical | `requires_confirmation` true→false |
+| `tool.confirmation_added` | info | `requires_confirmation` false→true |
 | `tool.renamed` | warning | Heuristic match suggests a tool was renamed (not a hard remove+add) |
+| `discovery.accuracy_regression` | warning | Progressive-discovery curve: selection accuracy dropped as catalog grew (#86) |
 | `tool.output_schema_added` | info | A tool gained an `outputSchema` |
 | `tool.output_schema_removed` | breaking | A tool lost its `outputSchema` |
-| `tool.output_schema_changed` | breaking | A tool's `outputSchema` changed |
+| `tool.output_schema_changed` | breaking | A tool's `outputSchema` changed (umbrella; see `output.field_*`) |
+| `output.field_removed` | breaking | Object output property removed |
+| `output.field_added` | info | Object output property added |
+| `output.field_type_changed` | breaking | Object output property JSON Schema `type` changed |
+| `output.field_renamed` | warning | Likely output field rename (deterministic confidence) |
 | `parameter.removed` | breaking | A parameter was removed from a tool |
 | `parameter.added` | info | An optional parameter was added |
 | `parameter.added_required` | breaking | A required parameter was added |
@@ -33,19 +44,37 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 
 ## Behavioral / model-backed signals (`behavior.*`)
 
-Structural `compare` does **not** yet emit `behavior.*` change codes.
-Model-backed probe work (#44–#47) ships separately as:
+Model-backed probe outcomes can be mapped to first-class `Change` entries via
+`tool_semantics.behavior_codes` (#61). Attach them to a structural
+`CompatibilityReport` with `merge_behavior_changes` so release policy treats
+selection/arg failures like other breaking codes.
 
-- Library APIs: `evaluate_probes_with_model`, `compute_probe_metrics`,
-  `run_probe_trials` (see [probes.md](probes.md))
-- Report helpers: `render_probe_metrics_*` / `render_stability_*` in `report.py`
+| Code | Typical severity | Meaning |
+| --- | --- | --- |
+| `behavior.tool_selection_failed` | breaking | Model selected the wrong tool (or a forbidden one) |
+| `behavior.arguments_invalid` | breaking | Model arguments failed schema / expected-argument checks |
+| `behavior.risk_expectation_failed` | breaking | Selected tool violated `max_risk` |
+| `behavior.confirmation_expectation_failed` | warning | Confirmation expectation was not met |
+| `behavior.unstable_probe` | warning | Selections/args varied across stability trials |
+| `behavior.deterministic_failure` | breaking | Same failing outcome on every stability trial |
+| `behavior.missing_data` | info | Model returned no usable tool call (never breaking alone) |
+| `behavior.evaluation_failed` | warning | Runner/provider error during evaluation |
 
-Those results are **not** folded into `CompatibilityReport.changes` today, so
-they do not affect compare exit codes by themselves.
+`probe` JSON reports include a `behavior_changes` array in model and stability
+modes. Missing-data and skipped (unapproved) probes do **not** emit breaking
+codes.
 
-The reserved `behavior.*` namespace (for example
-`behavior.tool_selection_failed`, `behavior.arguments_invalid`,
-`behavior.unstable_probe`) is **deferred**. Tracking issue:
-[#61](https://github.com/askmy-stack/tool-semantics/issues/61). Until that
-lands, do not invent ad-hoc behavioral codes in the diff engine; extend probe
-metrics instead or implement #61 with an update to this catalog in the same PR.
+Library:
+
+```python
+from tool_semantics.behavior_codes import (
+    changes_from_model_probe_report,
+    changes_from_stability_report,
+    merge_behavior_changes,
+)
+
+behavior = changes_from_model_probe_report(model_report)
+combined = merge_behavior_changes(structural_report, behavior)
+```
+
+Related APIs: `evaluate_probes_with_model`, `run_probe_trials` ([probes.md](probes.md)).
