@@ -70,6 +70,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
+# Optional: scaffold the standard project layout
+tool-semantics init
+
 # Capture two interface versions
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics capture examples/github_server_v2.json -o .tool-semantics/v2.json
@@ -79,6 +82,7 @@ tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json \
   --markdown-output .tool-semantics/report.md
 ```
 
+See [docs/project-layout.md](docs/project-layout.md) for the `.tool-semantics/` convention.
 ### Demo
 
 <p align="center">

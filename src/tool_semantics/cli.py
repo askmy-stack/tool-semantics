@@ -34,6 +34,7 @@ from tool_semantics.probes import (
     load_probes,
     run_probe_trials,
 )
+from tool_semantics.project import discover_default_probes, scaffold_project
 from tool_semantics.provenance import write_provenance
 from tool_semantics.report import (
     render_markdown,
@@ -381,19 +382,51 @@ def _openai_runner_from_env(
 
 
 @app.command()
+def init(
+    path: Annotated[
+        Path | None,
+        typer.Option(
+            "--path",
+            help="Project root to scaffold (default: current working directory).",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite existing stub files (directories are always ensured).",
+        ),
+    ] = False,
+) -> None:
+    """Scaffold the standard `.tool-semantics/` behavioral baseline layout (#85)."""
+    root = (path or Path.cwd()).resolve()
+    paths = scaffold_project(root, force=force)
+    console.print(f"Initialized Tool-Semantics layout under {paths.layout}")
+    console.print(f"- config: {paths.config}")
+    console.print(f"- baselines/: {paths.baselines}")
+    console.print(f"- probes/: {paths.probes}")
+    console.print(f"- traces/: {paths.traces}")
+    console.print(f"- behaviors: {paths.behaviors}")
+    console.print("See docs/project-layout.md for conventions.")
+
+
+@app.command()
 def probe(
     snapshot: Annotated[
         Path,
         typer.Argument(dir_okay=False, help="Snapshot JSON from `capture` / `capture-mcp`."),
     ],
     probes_file: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--probes",
             "-p",
-            help="Probe suite JSON or YAML (list or {probes: [...]}).",
+            help=(
+                "Probe suite JSON or YAML (list or {probes: [...]}). "
+                "When omitted, discovers `.tool-semantics/probes/` (#85)."
+            ),
         ),
-    ],
+    ] = None,
     model: Annotated[
         bool,
         typer.Option(
@@ -452,6 +485,16 @@ def probe(
 ) -> None:
     """Run offline (default) or opt-in model-backed behavioral probes."""
     _require_snapshot_file(snapshot, "Probe")
+    if probes_file is None:
+        discovered = discover_default_probes()
+        if discovered is None:
+            console.print(
+                "[red]No --probes file given and no probes found under "
+                ".tool-semantics/probes/.[/red] Run `tool-semantics init` or pass --probes."
+            )
+            raise typer.Exit(code=2)
+        probes_file = discovered
+        _log_verbose(verbose, f"Discovered probes file {probes_file}")
     if not probes_file.is_file():
         console.print(f"[red]Probe file not found:[/red] {probes_file}")
         raise typer.Exit(code=2)
