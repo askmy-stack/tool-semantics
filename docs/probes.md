@@ -32,6 +32,11 @@ tool-semantics probe .tool-semantics/v1.json \
 
 Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
+Model and stability JSON reports include a `behavior_changes` array of
+`behavior.*` codes (see [change-codes.md](change-codes.md)). Use
+`merge_behavior_changes` to fold them into a structural `CompatibilityReport`
+for policy gates.
+
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
 
 ## Compare / CI probe gate
