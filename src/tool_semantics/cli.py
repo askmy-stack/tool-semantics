@@ -24,12 +24,21 @@ from tool_semantics.mcp_capture import (
     capture_mcp_stdio,
 )
 from tool_semantics.policy import policy_from_name
+from tool_semantics.probe_gate import (
+    ProbeGateReport,
+    ProbeGateSettings,
+    ProbeMode,
+    ProbeTarget,
+    resolve_probe_targets,
+    run_probe_gate_for_snapshot,
+)
 from tool_semantics.probes import (
     evaluate_probes,
     evaluate_probes_with_model,
     load_probes,
     run_probe_trials,
 )
+from tool_semantics.project import discover_default_probes, scaffold_project
 from tool_semantics.provenance import write_provenance
 from tool_semantics.report import (
     render_markdown,
@@ -40,8 +49,9 @@ from tool_semantics.report import (
     render_stability_markdown,
     severity_style,
 )
-from tool_semantics.runner import OpenAICompatibleRunner, RunnerConfig
+from tool_semantics.runner import ModelRunner, OpenAICompatibleRunner, RunnerConfig
 from tool_semantics.scanner import ManifestError, capture_manifest, read_snapshot, write_snapshot
+from tool_semantics.scorecard import build_scorecard
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -376,19 +386,51 @@ def _openai_runner_from_env(
 
 
 @app.command()
+def init(
+    path: Annotated[
+        Path | None,
+        typer.Option(
+            "--path",
+            help="Project root to scaffold (default: current working directory).",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite existing stub files (directories are always ensured).",
+        ),
+    ] = False,
+) -> None:
+    """Scaffold the standard `.tool-semantics/` behavioral baseline layout (#85)."""
+    root = (path or Path.cwd()).resolve()
+    paths = scaffold_project(root, force=force)
+    console.print(f"Initialized Tool-Semantics layout under {paths.layout}")
+    console.print(f"- config: {paths.config}")
+    console.print(f"- baselines/: {paths.baselines}")
+    console.print(f"- probes/: {paths.probes}")
+    console.print(f"- traces/: {paths.traces}")
+    console.print(f"- behaviors: {paths.behaviors}")
+    console.print("See docs/project-layout.md for conventions.")
+
+
+@app.command()
 def probe(
     snapshot: Annotated[
         Path,
         typer.Argument(dir_okay=False, help="Snapshot JSON from `capture` / `capture-mcp`."),
     ],
     probes_file: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--probes",
             "-p",
-            help="Probe suite JSON or YAML (list or {probes: [...]}).",
+            help=(
+                "Probe suite JSON or YAML (list or {probes: [...]}). "
+                "When omitted, discovers `.tool-semantics/probes/` (#85)."
+            ),
         ),
-    ],
+    ] = None,
     model: Annotated[
         bool,
         typer.Option(
@@ -447,6 +489,16 @@ def probe(
 ) -> None:
     """Run offline (default) or opt-in model-backed behavioral probes."""
     _require_snapshot_file(snapshot, "Probe")
+    if probes_file is None:
+        discovered = discover_default_probes()
+        if discovered is None:
+            console.print(
+                "[red]No --probes file given and no probes found under "
+                ".tool-semantics/probes/.[/red] Run `tool-semantics init` or pass --probes."
+            )
+            raise typer.Exit(code=2)
+        probes_file = discovered
+        _log_verbose(verbose, f"Discovered probes file {probes_file}")
     if not probes_file.is_file():
         console.print(f"[red]Probe file not found:[/red] {probes_file}")
         raise typer.Exit(code=2)
@@ -519,19 +571,28 @@ def probe(
         failed_policy = bool(failed or unstable)
         table = Table(title=f"Stability probes ({trials} trials): {snap.server_name}")
         table.add_column("Probe")
+        table.add_column("pass@k")
+        table.add_column("pass^k")
+        table.add_column("Pass rate")
         table.add_column("Stability")
         table.add_column("Unstable")
         table.add_column("Det. fail")
-        table.add_column("Passed")
         for summary in stability.summaries:
             table.add_row(
                 summary.probe_id,
+                "yes" if summary.pass_at_k else "no",
+                "yes" if summary.pass_hat_k else "no",
+                f"{summary.pass_rate:.2f}" if summary.pass_rate is not None else "n/a",
                 f"{summary.stability_score:.2f}",
                 "yes" if summary.unstable else "no",
                 "yes" if summary.deterministic_failure else "no",
-                "yes" if summary.aggregate_passed else "no",
             )
         console.print(table)
+        rel = stability.reliability
+        console.print(
+            f"Reliability: pass@k={rel.pass_at_k_rate!s} pass^k={rel.pass_hat_k_rate!s} "
+            f"(k={stability.trial_count})"
+        )
         console.print(
             f"Result: [bold]{'PASS' if not failed_policy else 'FAIL'}[/bold] "
             f"(unstable={len(unstable)} deterministic_failures={len(failed)})"
@@ -603,6 +664,137 @@ def probe(
         raise typer.Exit(code=1)
 
 
+def _merge_probe_settings(
+    config_probes: ProbeGateSettings,
+    *,
+    probes_file: Path | None,
+    probe_mode: str | None,
+    probe_target: str | None,
+    probe_trials: int | None,
+    probe_seed: int | None,
+    allow_unapproved: bool | None,
+) -> ProbeGateSettings:
+    """CLI probe flags override matching fields from config."""
+    file = probes_file if probes_file is not None else config_probes.file
+    mode: ProbeMode = config_probes.mode
+    if probe_mode is not None:
+        normalized = probe_mode.strip().lower()
+        if normalized not in {"offline", "model"}:
+            console.print("[red]--probe-mode must be offline or model[/red]")
+            raise typer.Exit(code=2)
+        mode = normalized  # type: ignore[assignment]
+    target: ProbeTarget = config_probes.target
+    if probe_target is not None:
+        normalized_target = probe_target.strip().lower()
+        if normalized_target not in {"baseline", "candidate", "both"}:
+            console.print("[red]--probe-target must be baseline, candidate, or both[/red]")
+            raise typer.Exit(code=2)
+        target = normalized_target  # type: ignore[assignment]
+    trials = probe_trials if probe_trials is not None else config_probes.trials
+    if trials < 1:
+        console.print("[red]--probe-trials must be >= 1[/red]")
+        raise typer.Exit(code=2)
+    seed = probe_seed if probe_seed is not None else config_probes.seed
+    allow = allow_unapproved if allow_unapproved is not None else config_probes.allow_unapproved
+    # trials > 1 implies model mode for gate runs (same as probe CLI).
+    if trials > 1 and mode == "offline":
+        mode = "model"
+    return ProbeGateSettings(
+        file=file,
+        target=target,
+        mode=mode,
+        trials=trials,
+        seed=seed,
+        allow_unapproved=allow,
+        thresholds=config_probes.thresholds,
+    )
+
+
+def _run_compare_probe_gate(
+    *,
+    settings: ProbeGateSettings,
+    baseline_snap: object,
+    candidate_snap: object,
+    verbose: bool,
+    model_name: str | None,
+    api_key: str | None,
+    base_url: str | None,
+) -> ProbeGateReport:
+    from tool_semantics.models import InterfaceSnapshot
+
+    assert isinstance(baseline_snap, InterfaceSnapshot)
+    assert isinstance(candidate_snap, InterfaceSnapshot)
+
+    if settings.file is None:
+        return ProbeGateReport(enabled=False)
+
+    if not settings.file.is_file():
+        console.print(
+            f"[red]Probe file not found:[/red] {settings.file}\n"
+            "Set probes.file in .tool-semantics.toml or pass --probes <path>."
+        )
+        raise typer.Exit(code=2)
+
+    _log_verbose(verbose, f"Loading probes {settings.file.resolve()}")
+    try:
+        probes = load_probes(settings.file)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        console.print(f"[red]Probe load failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    runner: ModelRunner | None = None
+    effective_mode = settings.mode
+    if settings.trials > 1:
+        effective_mode = "model"
+    if effective_mode == "model":
+        runner = _openai_runner_from_env(model=model_name, api_key=api_key, base_url=base_url)
+
+    gate_settings = ProbeGateSettings(
+        file=settings.file,
+        target=settings.target,
+        mode=effective_mode,
+        trials=settings.trials,
+        seed=settings.seed,
+        allow_unapproved=settings.allow_unapproved,
+        thresholds=settings.thresholds,
+    )
+    snapshots = {"baseline": baseline_snap, "candidate": candidate_snap}
+    outcomes = []
+    for label in resolve_probe_targets(gate_settings.target):
+        _log_verbose(verbose, f"Running probe gate on {label} (mode={gate_settings.mode})")
+        outcomes.append(
+            run_probe_gate_for_snapshot(
+                snapshots[label],
+                probes,
+                gate_settings,
+                target_label=label,
+                runner=runner,
+            )
+        )
+
+    thresholds = gate_settings.thresholds
+    return ProbeGateReport(
+        enabled=True,
+        settings={
+            "file": str(gate_settings.file),
+            "target": gate_settings.target,
+            "mode": gate_settings.mode,
+            "trials": gate_settings.trials,
+            "seed": gate_settings.seed,
+            "allow_unapproved": gate_settings.allow_unapproved,
+            "thresholds": {
+                "min_pass_rate": thresholds.min_pass_rate,
+                "min_tool_selection_accuracy": thresholds.min_tool_selection_accuracy,
+                "min_argument_validity_rate": thresholds.min_argument_validity_rate,
+                "min_stability_score": thresholds.min_stability_score,
+                "fail_on_unstable": thresholds.fail_on_unstable,
+                "fail_on_deterministic_failure": thresholds.fail_on_deterministic_failure,
+            },
+        },
+        targets=outcomes,
+    )
+
+
 @app.command()
 def compare(
     baseline: Annotated[
@@ -645,6 +837,57 @@ def compare(
             ),
         ),
     ] = None,
+    probes: Annotated[
+        Path | None,
+        typer.Option(
+            "--probes",
+            help="Probe suite JSON/YAML for optional behavioral gating (overrides config).",
+        ),
+    ] = None,
+    probe_mode: Annotated[
+        str | None,
+        typer.Option(
+            "--probe-mode",
+            help="Probe gate mode: offline (default) or model (overrides config).",
+        ),
+    ] = None,
+    probe_target: Annotated[
+        str | None,
+        typer.Option(
+            "--probe-target",
+            help="Which snapshot(s) to probe: candidate|baseline|both (default candidate).",
+        ),
+    ] = None,
+    probe_trials: Annotated[
+        int | None,
+        typer.Option(
+            "--probe-trials",
+            help="Model-backed stability trials for the probe gate (implies model mode when >1).",
+        ),
+    ] = None,
+    probe_seed: Annotated[
+        int | None,
+        typer.Option("--probe-seed", help="Base seed for model-backed probe trials."),
+    ] = None,
+    allow_unapproved_probes: Annotated[
+        bool | None,
+        typer.Option(
+            "--allow-unapproved-probes/--no-allow-unapproved-probes",
+            help="Allow model-backed probe gate without approved=true (not recommended).",
+        ),
+    ] = None,
+    model_name: Annotated[
+        str | None,
+        typer.Option("--model-name", help="Model id for model-backed probe gate."),
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option("--api-key", help="API key for model-backed probe gate."),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option("--base-url", help="OpenAI-compatible base URL for probe gate."),
+    ] = None,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -672,16 +915,38 @@ def compare(
             compare_snapshots(baseline_snap, candidate_snap),
             config_data,
         )
+        probe_settings = _merge_probe_settings(
+            config_data.probes,
+            probes_file=probes,
+            probe_mode=probe_mode,
+            probe_target=probe_target,
+            probe_trials=probe_trials,
+            probe_seed=probe_seed,
+            allow_unapproved=allow_unapproved_probes,
+        )
     except (ManifestError, FileNotFoundError, ValueError) as exc:
         console.print(f"[red]Comparison failed:[/red] {exc}")
         raise typer.Exit(code=2) from exc
 
+    probe_gate = _run_compare_probe_gate(
+        settings=probe_settings,
+        baseline_snap=baseline_snap,
+        candidate_snap=candidate_snap,
+        verbose=verbose,
+        model_name=model_name,
+        api_key=api_key,
+        base_url=base_url,
+    )
+
     counts = report.counts_by_severity()
-    fails_policy = release_policy.should_fail(report)
+    fails_structural = release_policy.should_fail(report)
+    fails_probes = probe_gate.failed
+    fails_policy = fails_structural or fails_probes
     _log_verbose(
         verbose,
         f"Changes={len(report.changes)} counts={counts} "
-        f"compatible={report.is_compatible} policy_fail={fails_policy}",
+        f"compatible={report.is_compatible} policy_fail={fails_structural} "
+        f"probe_fail={fails_probes}",
     )
 
     table = Table(title=f"Tool-Semantics: {report.baseline} → {report.candidate}")
@@ -699,7 +964,20 @@ def compare(
         f"Result: [bold]{'compatible' if report.is_compatible else 'breaking'}[/bold] "
         f"(policy={release_policy.fail_at_or_above.value})"
     )
+    if probe_gate.enabled:
+        console.print(
+            f"Probes: [bold]{'PASS' if not probe_gate.failed else 'FAIL'}[/bold] "
+            f"(mode={probe_gate.settings.get('mode')} "
+            f"target={probe_gate.settings.get('target')})"
+        )
+        if probe_gate.breaches:
+            for breach in probe_gate.breaches:
+                console.print(f"  [red]•[/red] {breach}")
 
+    scorecard = build_scorecard(
+        report,
+        probe_gate=probe_gate if probe_gate.enabled else None,
+    )
     if json_output is not None:
         json_output.parent.mkdir(parents=True, exist_ok=True)
         payload = report.model_dump(mode="json")
@@ -708,10 +986,21 @@ def compare(
         payload["policy"] = {
             "fail_at_or_above": release_policy.fail_at_or_above.value,
             "failed": fails_policy,
+            "structural_failed": fails_structural,
+            "probe_failed": fails_probes,
         }
+        payload["scorecard"] = scorecard.to_json()
+        payload["probes"] = probe_gate.to_json()
         json_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if markdown_output is not None:
         markdown_output.parent.mkdir(parents=True, exist_ok=True)
-        markdown_output.write_text(render_markdown(report), encoding="utf-8")
+        markdown_output.write_text(
+            render_markdown(
+                report,
+                scorecard=scorecard,
+                probe_gate=probe_gate if probe_gate.enabled else None,
+            ),
+            encoding="utf-8",
+        )
     if fails_policy:
         raise typer.Exit(code=1)

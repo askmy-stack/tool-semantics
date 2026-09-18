@@ -35,3 +35,15 @@ def test_compare_action_requires_every_requested_artifact_file() -> None:
         "if: ${{ always() && inputs.upload-artifacts == 'true' && "
         "steps.validate-artifact-paths.outcome == 'success' }}"
     ) in action
+
+
+def test_compare_action_posts_eval_style_pr_comment() -> None:
+    action = Path(".github/actions/compare/action.yml").read_text(encoding="utf-8")
+
+    assert "name: Render eval-style PR comment" in action
+    assert "render_pr_comment_markdown" in action
+    assert "pr-comment.md" in action
+    assert "<!-- tool-semantics-report -->" in action
+    assert "probes:" in action
+    assert "probe-mode:" in action
+    assert "probe-failed:" in action

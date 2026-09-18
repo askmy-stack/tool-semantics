@@ -120,6 +120,25 @@ class StabilityProbeSummary(BaseModel):
     deterministic_failure: bool
     aggregate_passed: bool
     message: str
+    # First-class reliability (#106): pass@k (≥1 success) and pass^k (all succeed).
+    k: int = 0
+    pass_at_k: bool = False
+    pass_hat_k: bool = False
+    pass_rate: float | None = None
+    pass_variance: float | None = None
+
+
+class ReliabilityMetrics(BaseModel):
+    """Aggregate pass@k / pass^k across probes (#106)."""
+
+    k: int = 0
+    probe_count: int = 0
+    pass_at_k_rate: float | None = None
+    pass_hat_k_rate: float | None = None
+    mean_pass_rate: float | None = None
+    mean_stability_score: float | None = None
+    unstable_count: int = 0
+    deterministic_failure_count: int = 0
 
 
 class StabilityReport(BaseModel):
@@ -127,6 +146,7 @@ class StabilityReport(BaseModel):
     seed: int | None = None
     summaries: list[StabilityProbeSummary] = Field(default_factory=list)
     metrics: ProbeMetrics = Field(default_factory=ProbeMetrics)
+    reliability: ReliabilityMetrics = Field(default_factory=ReliabilityMetrics)
     runner: RunnerMetadata | None = None
 
 
@@ -544,16 +564,21 @@ def run_probe_trials(
     for probe_id, group in by_probe.items():
         if not group:
             continue
-        selections = tuple((item.selected_tool, json_freeze(item.arguments)) for item in group)
+        # Reliability metrics ignore skipped trials (unapproved probes).
+        evaluated = [item for item in group if item.outcome != ModelProbeOutcome.SKIPPED]
+        scored = evaluated if evaluated else group
+        selections = tuple((item.selected_tool, json_freeze(item.arguments)) for item in scored)
         unique = len(set(selections))
         # Consistency-only score: 1.0 = identical selection+args every trial.
-        stability = 1.0 if len(group) <= 1 else max(0.0, 1.0 - ((unique - 1) / (len(group) - 1)))
+        stability = 1.0 if len(scored) <= 1 else max(0.0, 1.0 - ((unique - 1) / (len(scored) - 1)))
         # Blend in selection/arg agreement rates when present (still 1.0 when all agree,
         # including agreeing on the wrong tool).
         selection_flags = [
-            item.tool_selection_correct for item in group if item.tool_selection_correct is not None
+            item.tool_selection_correct
+            for item in scored
+            if item.tool_selection_correct is not None
         ]
-        arg_flags = [item.arguments_valid for item in group if item.arguments_valid is not None]
+        arg_flags = [item.arguments_valid for item in scored if item.arguments_valid is not None]
         agreement_parts = [stability]
         if selection_flags:
             # Agreement among trials, not correctness vs expected.
@@ -572,13 +597,21 @@ def run_probe_trials(
         stability = sum(agreement_parts) / len(agreement_parts)
 
         all_failed_same = (
-            len(group) > 0
-            and all(not item.passed for item in group)
+            len(scored) > 0
+            and all(not item.passed for item in scored)
             and unique == 1
-            and all(item.outcome == group[0].outcome for item in group)
+            and all(item.outcome == scored[0].outcome for item in scored)
         )
         unstable = unique > 1
         deterministic_failure = all_failed_same and not unstable
+        k = len(scored)
+        passes = [item.passed for item in scored]
+        pass_count = sum(1 for flag in passes if flag)
+        pass_rate = (pass_count / k) if k else None
+        # Bernoulli variance of the empirical pass rate across trials.
+        pass_variance = (pass_rate * (1.0 - pass_rate)) if pass_rate is not None else None
+        pass_at_k = pass_count >= 1
+        pass_hat_k = k > 0 and pass_count == k
         summaries.append(
             StabilityProbeSummary(
                 probe_id=probe_id,
@@ -597,12 +630,17 @@ def run_probe_trials(
                 stability_score=round(stability, 4),
                 unstable=unstable,
                 deterministic_failure=deterministic_failure,
-                aggregate_passed=all(item.passed for item in group),
+                aggregate_passed=pass_hat_k,
                 message=(
                     "Deterministic failure across trials."
                     if deterministic_failure
                     else ("Unstable across trials." if unstable else "Stable across trials.")
                 ),
+                k=k,
+                pass_at_k=pass_at_k,
+                pass_hat_k=pass_hat_k,
+                pass_rate=round(pass_rate, 4) if pass_rate is not None else None,
+                pass_variance=round(pass_variance, 4) if pass_variance is not None else None,
             )
         )
 
@@ -612,7 +650,30 @@ def run_probe_trials(
         seed=base.seed,
         summaries=summaries,
         metrics=compute_probe_metrics(all_results),
+        reliability=compute_reliability_metrics(summaries, k=trial_count),
         runner=runner_meta,
+    )
+
+
+def compute_reliability_metrics(
+    summaries: list[StabilityProbeSummary], *, k: int
+) -> ReliabilityMetrics:
+    """Aggregate pass@k / pass^k rates across probe summaries (#106)."""
+    if not summaries:
+        return ReliabilityMetrics(k=k)
+    pass_at = [item.pass_at_k for item in summaries]
+    pass_hat = [item.pass_hat_k for item in summaries]
+    rates = [item.pass_rate for item in summaries if item.pass_rate is not None]
+    scores = [item.stability_score for item in summaries]
+    return ReliabilityMetrics(
+        k=k,
+        probe_count=len(summaries),
+        pass_at_k_rate=sum(1 for flag in pass_at if flag) / len(pass_at),
+        pass_hat_k_rate=sum(1 for flag in pass_hat if flag) / len(pass_hat),
+        mean_pass_rate=(sum(rates) / len(rates)) if rates else None,
+        mean_stability_score=(sum(scores) / len(scores)) if scores else None,
+        unstable_count=sum(1 for item in summaries if item.unstable),
+        deterministic_failure_count=sum(1 for item in summaries if item.deterministic_failure),
     )
 
 

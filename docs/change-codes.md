@@ -10,9 +10,14 @@ Severities **`breaking`** and **`critical`** fail CI (`compare` exits `1`).
 | `tool.description_changed` | warning | Description text changed; model tool-selection may drift |
 | `tool.risk_changed` | warning / critical | Declared risk level changed (critical when escalating from `read_only`) |
 | `tool.renamed` | warning | Heuristic match suggests a tool was renamed (not a hard remove+add) |
+| `discovery.accuracy_regression` | warning | Progressive-discovery curve: selection accuracy dropped as catalog grew (#86) |
 | `tool.output_schema_added` | info | A tool gained an `outputSchema` |
 | `tool.output_schema_removed` | breaking | A tool lost its `outputSchema` |
-| `tool.output_schema_changed` | breaking | A tool's `outputSchema` changed |
+| `tool.output_schema_changed` | breaking | A tool's `outputSchema` changed (umbrella; see `output.field_*`) |
+| `output.field_removed` | breaking | Object output property removed |
+| `output.field_added` | info | Object output property added |
+| `output.field_type_changed` | breaking | Object output property JSON Schema `type` changed |
+| `output.field_renamed` | warning | Likely output field rename (deterministic confidence) |
 | `parameter.removed` | breaking | A parameter was removed from a tool |
 | `parameter.added` | info | An optional parameter was added |
 | `parameter.added_required` | breaking | A required parameter was added |
