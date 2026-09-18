@@ -1,7 +1,8 @@
 # GitHub Action
 
 Composite action that compares two Tool-Semantics snapshots in CI and can post
-the Markdown report as a pull-request comment.
+the Markdown report as a pull-request comment. Optionally gates on behavioral
+probes (offline by default; model-backed when configured).
 
 ## Location
 
@@ -50,9 +51,20 @@ jobs:
           baseline: .tool-semantics/baselines/github.json
           candidate: .tool-semantics/candidate.json
           policy: strict
+          # Optional behavioral gate (offline; no API key required):
+          probes: probes/suite.json
+          probe-mode: offline
           comment-on-pr: "true"
           upload-artifacts: "true"
 ```
+
+For model-backed gates, set `probe-mode: model` (and optionally `probe-trials`)
+and provide `TOOL_SEMANTICS_API_KEY` / `OPENAI_API_KEY` as a repository secret
+available to the job. Missing credentials or a missing probe file fail with
+exit code `2`.
+
+Probe thresholds and defaults can also live in `.tool-semantics.toml` — see
+[config.md](config.md). Action inputs override the matching config fields.
 
 ## Inputs
 
@@ -60,9 +72,14 @@ jobs:
 | --- | --- | --- | --- |
 | `baseline` | yes | — | Baseline snapshot path |
 | `candidate` | yes | — | Candidate snapshot path |
-| `config` | no | `""` | Optional ignore/policy config path |
+| `config` | no | `""` | Optional ignore/policy/probe config path |
 | `policy` | no | `""` | `compatible` / `strict` / `critical-only` / `permissive` |
-| `comment-on-pr` | no | `true` | Upsert a PR comment with the report |
+| `probes` | no | `""` | Probe suite path; empty keeps structural-only behavior |
+| `probe-mode` | no | `""` | `offline` or `model` (empty → config / offline default) |
+| `probe-target` | no | `""` | `candidate` / `baseline` / `both` |
+| `probe-trials` | no | `""` | Stability trial count (`>1` implies model mode) |
+| `probe-seed` | no | `""` | Optional seed for model-backed trials |
+| `comment-on-pr` | no | `true` | Upsert an eval-style PR comment (scorecard + optional probes) |
 | `upload-artifacts` | no | `false` | Upload the candidate snapshot and generated reports as a workflow artifact |
 | `fail-on-breaking` | no | `true` | Legacy; `false` maps to `permissive` when `policy` unset |
 | `working-directory` | no | `.` | Directory for install/compare |
@@ -72,7 +89,8 @@ jobs:
 | Output | Description |
 | --- | --- |
 | `compatible` | `true` / `false` after ignore rules (breaking/critical free) |
-| `policy-failed` | `true` if the selected release policy failed |
+| `policy-failed` | `true` if the selected release policy **or** probe gate failed |
+| `probe-failed` | `true` if probe thresholds were breached (`false` when probes disabled) |
 | `report-path` | Path to the Markdown report artifact |
 
 ## Baselines and diagnostic artifacts
@@ -86,8 +104,57 @@ capture a new baseline, review its diff, and commit that snapshot change.
 When `upload-artifacts: "true"`, the Action uploads the candidate snapshot plus
 the generated Markdown and JSON reports in the `tool-semantics-report` artifact.
 These files help diagnose a CI run; they do not replace the Git-tracked baseline.
+When probes are enabled, the JSON report includes a `probes` section with
+metrics / stability summaries.
 
 ## Permissions
 
 When `comment-on-pr` is enabled on `pull_request` events, the workflow needs
 `pull-requests: write`.
+
+## PR comment shape
+
+Comments are upserted with the marker `<!-- tool-semantics-report -->` and an
+**eval-style** summary (not the raw full report alone):
+
+```markdown
+<!-- tool-semantics-report -->
+## Tool-Semantics eval summary
+
+**STATUS:** `FAIL`
+
+### Counts
+
+- critical: `0`
+- breaking: `2`
+- warning: `1`
+- info: `3`
+
+### Scorecard
+
+| Dimension | Status | Score | Evidence |
+| --- | --- | ---: | --- |
+| `structural` | `fail` | 50% | `DETERMINISTIC` |
+| `semantic` | `pass` | 100% | `DETERMINISTIC` |
+| `behavioral` | `n/a` | n/a | `N/A` |
+| `safety` | `pass` | 100% | `DETERMINISTIC` |
+| `stability` | `n/a` | n/a | `N/A` |
+
+_Behavioral / stability probes were not configured — structural-only summary
+(behavioral/stability show n/a)._
+
+### Top breaking findings
+
+- `tool.removed` on `search_issues` (`DETERMINISTIC`) — Tool 'search_issues' was removed.
+
+<details>
+<summary>Full Tool-Semantics report</summary>
+
+… full Markdown report including scorecard / probe sections …
+
+</details>
+```
+
+When `probes` is set, the scorecard fills in behavioral (and optionally
+stability) rows from the probe gate, and a probe failure forces
+`STATUS: FAIL` even if structural policy would otherwise pass.

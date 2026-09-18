@@ -194,14 +194,114 @@ def _append_output_schema_changes(
             )
         )
         return
+
+    # Keep the whole-schema code for backward compatibility (#89).
     report.changes.append(
         Change(
             severity=Severity.BREAKING,
             code="tool.output_schema_changed",
             subject=tool_name,
-            message=f"Output schema changed for '{tool_name}'.",
+            message=(
+                f"Output schema changed for '{tool_name}' "
+                "(agents parsing structured results may break)."
+            ),
         )
     )
+    _append_output_field_changes(report, tool_name, old_schema, new_schema)
+
+
+def _append_output_field_changes(
+    report: CompatibilityReport,
+    tool_name: str,
+    old_schema: dict[str, object],
+    new_schema: dict[str, object],
+) -> None:
+    """Emit field-level codes when both sides expose object properties."""
+    from tool_semantics.output_schema import (
+        detect_field_renames,
+        property_type,
+        schema_properties,
+    )
+
+    old_props = schema_properties(dict(old_schema))
+    new_props = schema_properties(dict(new_schema))
+    if not old_props and not new_props:
+        return
+
+    removed_names = set(old_props) - set(new_props)
+    added_names = set(new_props) - set(old_props)
+    renames = detect_field_renames(
+        {name: old_props[name] for name in removed_names},
+        {name: new_props[name] for name in added_names},
+    )
+    renamed_from = {item.old_name for item in renames}
+    renamed_to = {item.new_name for item in renames}
+
+    for item in renames:
+        report.changes.append(
+            Change(
+                severity=Severity.WARNING,
+                code="output.field_renamed",
+                subject=f"{tool_name}.{item.old_name}->{item.new_name}",
+                message=(
+                    f"Output field '{item.old_name}' appears renamed to '{item.new_name}' "
+                    f"(confidence={item.confidence:.2f}); downstream parsers may still "
+                    f"read the old key."
+                ),
+            )
+        )
+        old_type = property_type(old_props[item.old_name])
+        new_type = property_type(new_props[item.new_name])
+        if old_type != new_type:
+            report.changes.append(
+                Change(
+                    severity=Severity.BREAKING,
+                    code="output.field_type_changed",
+                    subject=f"{tool_name}.{item.new_name}",
+                    message=(
+                        f"Output field '{item.new_name}' (renamed from '{item.old_name}') "
+                        f"type changed from '{old_type}' to '{new_type}'."
+                    ),
+                )
+            )
+
+    for field_name in sorted(removed_names - renamed_from):
+        report.changes.append(
+            Change(
+                severity=Severity.BREAKING,
+                code="output.field_removed",
+                subject=f"{tool_name}.{field_name}",
+                message=(
+                    f"Output field '{field_name}' was removed; agents selecting this "
+                    f"property will fail or get undefined values."
+                ),
+            )
+        )
+    for field_name in sorted(added_names - renamed_to):
+        report.changes.append(
+            Change(
+                severity=Severity.INFO,
+                code="output.field_added",
+                subject=f"{tool_name}.{field_name}",
+                message=f"Output field '{field_name}' was added.",
+            )
+        )
+
+    for field_name in sorted(set(old_props) & set(new_props)):
+        old_type = property_type(old_props[field_name])
+        new_type = property_type(new_props[field_name])
+        if old_type != new_type:
+            report.changes.append(
+                Change(
+                    severity=Severity.BREAKING,
+                    code="output.field_type_changed",
+                    subject=f"{tool_name}.{field_name}",
+                    message=(
+                        f"Output field '{field_name}' type changed from "
+                        f"'{old_type}' to '{new_type}'."
+                    ),
+                )
+            )
 
 
 def _append_default_change(

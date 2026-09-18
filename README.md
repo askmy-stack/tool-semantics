@@ -70,6 +70,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
+# Optional: scaffold the standard project layout
+tool-semantics init
+
 # Capture two interface versions
 tool-semantics capture examples/github_server_v1.json -o .tool-semantics/v1.json
 tool-semantics capture examples/github_server_v2.json -o .tool-semantics/v2.json
@@ -79,6 +82,7 @@ tool-semantics compare .tool-semantics/v1.json .tool-semantics/v2.json \
   --markdown-output .tool-semantics/report.md
 ```
 
+See [docs/project-layout.md](docs/project-layout.md) for the `.tool-semantics/` convention.
 ### Demo
 
 <p align="center">
@@ -148,13 +152,16 @@ tool-semantics compare <baseline.json> <candidate.json> \
   [--json-output report.json] \
   [--markdown-output report.md] \
   [--config .tool-semantics.toml] \
+  [--probes probes.json] [--probe-mode offline|model] \
+  [--probe-target candidate|baseline|both] [--probe-trials N] \
   [-v]
 ```
 
 - `--verbose` / `-v` logs paths, tool counts, and change totals to **stderr** (default Rich UX unchanged).
-- `--config` loads ignore rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
+- `--config` loads ignore / policy / optional probe-gate rules; if omitted, `.tool-semantics.toml` in the cwd is used when present.
 - `capture-mcp` speaks MCP JSON-RPC over stdio, Streamable HTTP, or legacy SSE; secrets-like keys are redacted by default. Bare URLs auto-detect HTTP then SSE — see [docs/mcp-versions.md](docs/mcp-versions.md).
 - `probe` runs offline behavioral probes by default; `--model` / `--trials` opt into model-backed evaluation (approved probes + API key) — see [docs/probes.md](docs/probes.md).
+- `compare --probes` (or `[probes]` in config) optionally gates CI on probe pass rates / metrics — see [docs/config.md](docs/config.md) and [docs/github-action.md](docs/github-action.md).
 
 ### Approved baselines and provenance
 

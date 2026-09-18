@@ -244,3 +244,107 @@ def test_stability_stable_unstable_and_deterministic_failure() -> None:
     assert failed.summaries[0].deterministic_failure
     assert not failed.summaries[0].unstable
     assert "Deterministic failures" in render_stability_markdown(failed)
+
+
+def test_pass_at_k_and_pass_hat_k_reliability() -> None:
+    # Mixed outcomes: pass, fail, pass → pass@k yes, pass^k no
+    mixed_runner = FakeModelRunner(
+        [
+            ModelCompletion(
+                tool_calls=[ToolCallRequest(name="search_issues", arguments={"query": "a"})],
+                metadata=RunnerMetadata(provider="fake", model="m"),
+            ),
+            ModelCompletion(
+                tool_calls=[ToolCallRequest(name="create_issue", arguments={"title": "x"})],
+                metadata=RunnerMetadata(provider="fake", model="m"),
+            ),
+            ModelCompletion(
+                tool_calls=[ToolCallRequest(name="search_issues", arguments={"query": "a"})],
+                metadata=RunnerMetadata(provider="fake", model="m"),
+            ),
+        ]
+    )
+    mixed = run_probe_trials(
+        _snapshot(),
+        [
+            Probe(
+                id="mixed",
+                intent="search",
+                expected_tool="search_issues",
+                required_params=["query"],
+                approved=True,
+            )
+        ],
+        mixed_runner,
+        trial_count=3,
+        seed=1,
+    )
+    summary = mixed.summaries[0]
+    assert summary.k == 3
+    assert summary.pass_at_k is True
+    assert summary.pass_hat_k is False
+    assert summary.pass_rate == round(2 / 3, 4)
+    assert summary.pass_variance is not None
+    assert mixed.reliability.pass_at_k_rate == 1.0
+    assert mixed.reliability.pass_hat_k_rate == 0.0
+    assert mixed.reliability.k == 3
+    md = render_stability_markdown(mixed)
+    assert "pass@k" in md
+    assert "pass^k" in md
+    assert "Per-trial details" in md
+    assert "Reliability" in md
+
+    # All success → both true
+    ok_runner = FakeModelRunner(
+        [
+            ModelCompletion(
+                tool_calls=[ToolCallRequest(name="search_issues", arguments={"query": "a"})],
+                metadata=RunnerMetadata(provider="fake", model="m"),
+            )
+            for _ in range(2)
+        ]
+    )
+    ok = run_probe_trials(
+        _snapshot(),
+        [
+            Probe(
+                id="ok",
+                intent="search",
+                expected_tool="search_issues",
+                required_params=["query"],
+                approved=True,
+            )
+        ],
+        ok_runner,
+        trial_count=2,
+    )
+    assert ok.summaries[0].pass_at_k and ok.summaries[0].pass_hat_k
+    assert ok.reliability.pass_hat_k_rate == 1.0
+
+    # All fail same way → pass@k false, deterministic
+    bad_runner = FakeModelRunner(
+        [
+            ModelCompletion(
+                tool_calls=[ToolCallRequest(name="create_issue", arguments={"title": "x"})],
+                metadata=RunnerMetadata(provider="fake", model="m"),
+            )
+            for _ in range(2)
+        ]
+    )
+    bad = run_probe_trials(
+        _snapshot(),
+        [
+            Probe(
+                id="bad",
+                intent="search",
+                expected_tool="search_issues",
+                approved=True,
+            )
+        ],
+        bad_runner,
+        trial_count=2,
+    )
+    assert bad.summaries[0].pass_at_k is False
+    assert bad.summaries[0].pass_hat_k is False
+    assert bad.summaries[0].deterministic_failure
+    assert bad.reliability.pass_at_k_rate == 0.0
