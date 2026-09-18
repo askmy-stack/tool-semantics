@@ -45,6 +45,10 @@ Issues = "https://github.com/askmy-stack/tool-semantics/issues"
 Changelog = "https://github.com/askmy-stack/tool-semantics/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+# Marker extras — OpenAI / Azure / local profiles use stdlib HTTP only.
+# Installing [openai] documents intent; it does not pull a provider SDK.
+openai = []
+providers = []
 dev = [
   "pytest>=8,<10",
   "pytest-cov>=5,<8",

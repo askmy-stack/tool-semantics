@@ -90,6 +90,76 @@ probe = Probe(
 | `TOOL_SEMANTICS_MODEL` / `OPENAI_MODEL` | Model id (default `gpt-4o-mini`) |
 | `TOOL_SEMANTICS_BASE_URL` / `OPENAI_BASE_URL` | OpenAI-compatible base URL |
 
+## Packaging extras (SDK-free)
+
+Core `pip install tool-semantics` never requires a provider SDK.
+`OpenAICompatibleRunner` speaks HTTP with the standard library only.
+
+Optional extras are **markers** (empty dependency sets) so teams can declare
+intent without pulling SDKs:
+
+```bash
+pip install "tool-semantics[openai]"
+# or
+pip install "tool-semantics[providers]"
+```
+
+## HTTP provider profile matrix
+
+| Profile | Base URL pattern | Auth | Notes |
+| --- | --- | --- | --- |
+| `openai` | `https://api.openai.com/v1` | Bearer | Official Chat Completions |
+| `azure-openai` | `https://{resource}.openai.azure.com/openai/deployments/{deployment}` | `api-key` header + `api-version` query | Pass `resource=` / `deployment=` |
+| `local` | `http://127.0.0.1:11434/v1` | Bearer (often ignored) | Ollama, vLLM, LM Studio, etc. |
+
+```python
+from tool_semantics.runner import (
+    RunnerConfig,
+    openai_compatible_from_profile,
+)
+
+runner = openai_compatible_from_profile(
+    "openai",
+    model="gpt-4o-mini",
+    api_key="…",
+)
+azure = openai_compatible_from_profile(
+    "azure-openai",
+    model="gpt-4o-mini",  # deployment name
+    api_key="…",
+    resource="my-resource",
+    deployment="gpt-4o-mini",
+)
+local = openai_compatible_from_profile(
+    "local",
+    model="llama3.2",
+    api_key="ollama",  # placeholder for local servers that expect a key
+    base_url="http://127.0.0.1:11434/v1",
+)
+
+cfg = RunnerConfig(
+    max_retries=2,
+    retry_backoff_seconds=0.05,
+    max_calls=20,
+    max_tokens=50_000,
+    max_cost_usd=0.50,
+    prompt_cost_per_1m=0.15,
+    completion_cost_per_1m=0.60,
+    max_output_tokens=1024,
+    seed=1,
+)
+```
+
+Limits (`max_calls`, `max_tokens`, `max_cost_usd`) are enforced on the runner
+and recorded on `ModelCompletion.metadata.run_config` together with cumulative
+`total_tokens` / `total_cost_usd`.
+
+### Retry / backoff
+
+`OpenAICompatibleRunner.complete` attempts `max_retries + 1` times. Between
+attempts it sleeps `retry_backoff_seconds` (fixed backoff; default `0.05`).
+Unit tests monkeypatch `time.sleep` and never open a live network socket.
+
 ## Safety
 
 - Do not embed secrets in probe intents or expected arguments.

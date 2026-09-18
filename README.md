@@ -110,6 +110,7 @@ Result: breaking
 
 ```bash
 pip install tool-semantics
+# optional marker extras (no provider SDKs): tool-semantics[openai] / [providers]
 # or from source: pip install -e .
 ```
 
