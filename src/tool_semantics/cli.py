@@ -523,19 +523,28 @@ def probe(
         failed_policy = bool(failed or unstable)
         table = Table(title=f"Stability probes ({trials} trials): {snap.server_name}")
         table.add_column("Probe")
+        table.add_column("pass@k")
+        table.add_column("pass^k")
+        table.add_column("Pass rate")
         table.add_column("Stability")
         table.add_column("Unstable")
         table.add_column("Det. fail")
-        table.add_column("Passed")
         for summary in stability.summaries:
             table.add_row(
                 summary.probe_id,
+                "yes" if summary.pass_at_k else "no",
+                "yes" if summary.pass_hat_k else "no",
+                f"{summary.pass_rate:.2f}" if summary.pass_rate is not None else "n/a",
                 f"{summary.stability_score:.2f}",
                 "yes" if summary.unstable else "no",
                 "yes" if summary.deterministic_failure else "no",
-                "yes" if summary.aggregate_passed else "no",
             )
         console.print(table)
+        rel = stability.reliability
+        console.print(
+            f"Reliability: pass@k={rel.pass_at_k_rate!s} pass^k={rel.pass_hat_k_rate!s} "
+            f"(k={stability.trial_count})"
+        )
         console.print(
             f"Result: [bold]{'PASS' if not failed_policy else 'FAIL'}[/bold] "
             f"(unstable={len(unstable)} deterministic_failures={len(failed)})"

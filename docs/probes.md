@@ -27,6 +27,9 @@ tool-semantics probe .tool-semantics/v1.json \
   --trials 4 --seed 1
 ```
 
+`--trials` sets **k** for pass@k / pass^k reliability metrics — see
+[reliability.md](reliability.md).
+
 Exit codes: `0` pass, `1` probe / stability failure, `2` input / config error.
 
 Probe files may be JSON or YAML: a list of probes, or `{ "probes": [ … ] }`.
